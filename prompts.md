@@ -209,38 +209,76 @@ Implement the Exam Day Crisis solution:
 
 ---
 
-### Step 8: Final Prompt — Production Build Verification & Submission Checklist
+### Step 8: Multi-Branch Merge & Full Integration
 
-#### Final Prompt 8.1
+#### Prompt 8.1
 ```text
-Final Submission Preparation:
-1. Validate that backend and frontend compile with zero TypeScript errors.
-2. Run automated Vitest test suite to ensure all allocation invariants pass.
-3. Verify Docker container build (docker compose build) succeeds cleanly.
-4. Confirm repository hygiene: public visibility, clean git history, no committed node_modules or credentials.
+now one sharon branch has to merge bro — fix any conflicts and get everything building clean
+```
+
+#### Action Taken
+Fetched `origin/sharon` (coordinator dashboard branch). Resolved `.gitignore` merge conflict (kept union of both versions). Sharon's branch brought in:
+- `backend/src/tests/builders.ts` — test fixture factories
+- `backend/src/domain/metrics.ts` — `computeMetrics()` derived from DB
+- `backend/src/routes/recoveryData.ts` — `loadEngineInput()` helper
+- Extended `recovery.ts`, `incidents.ts`, `scenarios.ts`, `transport.ts`
+- `frontend/vercel.json` — Vercel SPA routing config
+- `backend/.env.example` — environment template
+- `backend/render.yaml` — Render deploy config
+
+---
+
+### Step 9: Full API Audit & Frontend–Backend Sync Fix
+
+#### Prompt 9.1
+```text
+can you go through each module — is that syncing with the backend? I want each module to work properly without anything breaking.
+```
+
+#### Issues Found & Fixed
+Backend routes returned camelCase field names; frontend TypeScript types expected snake_case. All mapping now done in `frontend/src/api/client.ts`:
+
+| Route | Backend Returns | Frontend Type Needed | Fix |
+|---|---|---|---|
+| `GET /api/villages` | `corridorId` | `corridor_id` | Mapped in `fetchVillages()` |
+| `GET /api/transport` | `occupiedSeats`, `departureMin`, `arrivalMinByVillage`, kind `'school_van'` | `occupied_seats`, `departure_min`, `arrival_min`, `'institution_vehicle'` | Mapped in `fetchTransport()` |
+| `GET /api/incidents` | `transportOptionId`, `reportedBy` | `transport_option_id`, `reported_by` | Mapped in `fetchIncidents()` |
+| `GET /api/requests` | `studentId`, `incidentId` | `student_id`, `incident_id` | Mapped in `fetchHelpRequests()` |
+| `GET /api/metrics` | `affected` | `affectedRequests` | Mapped in `fetchDashboardMetrics()` |
+
+`CoordinatorDashboard.tsx` was a 13-line stub — rebuilt as a full live dashboard with incident confirm/dismiss, recovery engine trigger, plan approval, SSE connection, and metrics.
+
+---
+
+### Step 10: Final Production Build Verification
+
+#### Final Prompt 10.1
+```text
+okay now our project is correct right
 ```
 
 #### Concrete Build & Verification Results
-- **Frontend Production Build:** Passed cleanly.
+- **Frontend Production Build:** Passed — zero TypeScript errors, zero warnings.
   ```text
-  ✓ 34 modules transformed.
-  dist/index.html                   0.49 kB │ gzip:  0.34 kB
-  dist/assets/index-BT0nQmES.css   11.49 kB │ gzip:  2.87 kB
-  dist/assets/index-B15RFItN.js   145.02 kB │ gzip: 46.60 kB
-  ✓ built in 1.45s
+  ✓ 1618 modules transformed.
+  dist/index.html                     0.49 kB │ gzip:  0.34 kB
+  dist/assets/index-Cw5UQFfL.css     58.32 kB │ gzip: 11.20 kB
+  dist/assets/index-BwahBK8C.js   1,080.18 kB │ gzip: 299.59 kB
+  ✓ built in 4.94s
   ```
-- **Backend Unit Tests (Vitest):** All 7 core invariant tests passed.
+- **Backend Unit Tests (Vitest):** All 12 tests passing (7 original + 5 from Sharon's branch).
   ```text
-  ✓ src/tests/engine.test.ts (7 tests) 10ms
+  ✓ src/tests/engine.test.ts (12 tests) 19ms
   Test Files  1 passed (1)
-  Tests       7 passed (7)
+       Tests  12 passed (12)
   ```
 - **Docker Container Build:** Image `routeless-last-mile-backend` successfully built with compiled C++ bindings.
-- **Public Repository:** https://github.com/ananya-asa/routeless-last-mile
-- **Deployment Status:** Pre-built production bundle in `dist/` ready for public Vercel hosting; Docker container ready for Railway / VPS hosting.
+- **Public Repository:** https://github.com/ananya-asa/routeless-last-mile · commit `851fcda`
+- **Deployment Target:** Frontend → Vercel (`frontend/` root) · Backend → Railway / Docker
 
 ---
 
 ### Retrospective: What We Learned & Would Do Differently
 - **Schema Completeness:** While we defined `isExamDay` in our frontend TypeScript interfaces early, we omitted the physical column in the initial SQLite `schema.sql` file, requiring an `ALTER TABLE` step when the hurdle arrived. In future projects, we would cross-validate the SQL DDL directly against the TypeScript types before running migrations.
+- **API Contract:** Backend and frontend were written in parallel by different team members with different naming conventions (camelCase vs. snake_case). A shared `api-contract.ts` or OpenAPI spec written upfront would eliminate all mapping shims in `client.ts`.
 - **Offline Reliability:** Given additional time, we would implement an SMS/USSD fallback driver manifest for areas with complete cellular blackout.
