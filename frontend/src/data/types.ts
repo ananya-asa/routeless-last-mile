@@ -3,6 +3,14 @@ export type VehicleStatus = 'active' | 'delayed' | 'cancelled';
 export type RequestStatus = 'pending' | 'proposed' | 'confirmed' | 'unserved' | 'escalated';
 export type IncidentType = 'no_show' | 'full' | 'breakdown' | 'delay' | 'road_block';
 
+export type UnservedReason =
+  | 'no_verified_vehicle'
+  | 'incompatible_route'
+  | 'too_late'
+  | 'no_capacity';
+
+export type CrowdingLevel = 'green' | 'amber' | 'red';
+
 export interface Village {
   id: string;
   name: string;
@@ -41,6 +49,15 @@ export interface HelpRequest {
   student_id: string;
   incident_id: string;
   status: RequestStatus;
+  created_at: string;
+}
+
+export interface Assignment {
+  id: string;
+  request_id: string;
+  transport_option_id: string;
+  status: 'proposed' | 'confirmed' | 'cancelled';
+  explanation?: string;
   created_at: string;
 }
 
