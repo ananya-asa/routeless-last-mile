@@ -68,7 +68,7 @@ Approved the merged blueprint (`ROUTELESS_FINAL_PS.md`). Ensured that relay rout
 
 #### Prompt 3.1
 ```text
-bro mobile specific means we have to use react native ??
+ I had a doubt ,Mobile specific means we have to use react native ??
 ```
 
 #### AI Response Excerpt
@@ -128,7 +128,7 @@ Created the full 41-file repository skeleton across `backend/` and `frontend/` u
 
 #### Prompt 6.1
 ```text
-ok now lets move into my part person 1 now
+ok now lets move into my part ,  person 1 part , lets discuss first before moving into the code.
 ```
 
 #### Issues Encountered & Concrete Fixes
@@ -159,8 +159,13 @@ YOUR CHALLENGE: Adapt your existing ROUTELESS solution to handle this unexpected
 
 #### Prompt 7.1
 ```text
-see this bro properly this is the hurlde did we alreasy mentioned this inour ps before
-wait bro lets discuss what apprach did u think of for the hurdle
+Here is the surprise hurdle: [paste hurdle text].
+
+Before we write any code:
+1. Which parts of this are already covered by our current data model and recovery engine?
+2. What is missing? List the changes needed, by file.
+3. Suggest one approach for each of the 4 crisis factors (dual bus failure, +40% demand, flooded road, exam deadline).
+4. Keep it modular so that only a few files change. No code yet.
 ```
 
 #### Prompt 7.2 (Hurdle Implementation Prompt)
@@ -213,11 +218,7 @@ Implement the Exam Day Crisis solution:
 
 #### Prompt 8.1
 ```text
-Integration Directive — Coordinator Operational Track:
-Merge the remote coordinator dashboard branch (`origin/sharon`) into `main`:
-1. Inspect remote branch divergence and perform clean upstream merge.
-2. Resolve any git merge conflicts across common configuration files (.gitignore, package locks) while preserving dual-environment rules.
-3. Validate that imported test fixture factories (`builders.ts`), derived metric computations, and coordinator views compile with zero TypeScript errors.
+now  sharon branch has to merge  — fix any conflicts and get everything building clean
 ```
 
 #### Action Taken
@@ -236,11 +237,7 @@ Fetched `origin/sharon` (coordinator dashboard branch). Resolved `.gitignore` me
 
 #### Prompt 9.1
 ```text
-End-to-End API Synchronization & Contract Normalization:
-Conduct a comprehensive contract audit comparing backend endpoint response payloads against client-side consumer types (`frontend/src/api/client.ts`):
-1. Audit naming convention mismatches between backend JSON payloads (camelCase) and frontend domain interfaces (snake_case).
-2. Implement defensive normalization mappers in `client.ts` across villages, transport options, incidents, help requests, and metrics to prevent runtime `undefined` property faults.
-3. Upgrade `CoordinatorDashboard.tsx` from a placeholder view to a fully operational control panel featuring incident triage, recovery engine execution, all-or-nothing approval, live metric cards, and real-time SSE push listeners.
+can you go through each module — is that syncing with the backend? I want each module to work properly without anything breaking.
 ```
 
 #### Issues Found & Fixed
