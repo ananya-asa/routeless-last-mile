@@ -151,23 +151,36 @@ Rules:
 
 ---
 
-### Phase 7: Adaptation to Surprise Challenge / Hurdle
+### Phase 7: Adaptation to Official Surprise Challenge — THE EXAM DAY CRISIS
 
-#### Prompt 7.1 — Handling the Unexpected Roadblock Disruption
+#### Official Surprise Hurdle Received:
+> **SURPRISE HURDLE: THE EXAM DAY CRISIS**
+> *It is an important examination day. Sudden rural transport crisis:*
+> 1. **Bus breakdown:** Two government buses unavailable.
+> 2. **Demand surge:** Demand increases by +40%.
+> 3. **Road blockage:** Major road connecting two villages inaccessible due to flooding.
+> 4. **Time pressure:** Several students have examinations scheduled within the next 2 hours.
+> *Challenge:* Adapt ROUTELESS to intelligently reallocate available buses, suggest alternative routes, prioritize students appearing for examinations, and minimize students missing exams.
+
+#### Prompt 7.1 — Adapting Engine to the Exam Day Crisis
 ```text
-Surprise Hurdle: Southern Corridor Flooding.
-A flash-flood closes the Southern Corridor connecting Village C. Even though Van V1 has 8 empty seats, it cannot physically traverse the route.
-
-Task:
-1. Update transport_blocked_corridors table and route eligibility checks.
-2. Re-run Recovery Engine against Village C demand.
-3. Validate that the engine refuses to route Van V1 through the flooded corridor and honestly transitions all 12 students to 'unserved: route_blocked' rather than generating unsafe assignments.
+Surprise Hurdle Adaptation:
+1. Data Model Extension: Ensure help_requests tracks is_exam_day: boolean and target_deadline_min: number.
+2. Demand Surge (+40%): Expand request fixture from 12 to 17 students, with 10 flagged as having immediate board exams (09:00 AM strict cutoff).
+3. Dual Bus Failure: Mark both Bus B1 and Bus B2 as broken down/cancelled.
+4. Flooded Roadblock: Set Southern corridor (Village C direct link) as blocked.
+5. Optimization Logic in recoveryEngine.ts:
+   - Priority Tier 1: Students with is_exam_day = true sorted by earliest exam start time.
+   - Priority Tier 2: Regular commuters.
+   - Flood bypass / Relay route: Route students from Village C through Northern dry junction (Village B) to connect with remaining backup transport.
+   - Zero Tolerance: Exam students arriving > deadline must NOT receive false confirmations; trigger priority emergency school escort.
 ```
 
 * **Modules Modified:**
-  - `backend/src/domain/eligibility.ts` (added corridor blockage validation)
-  - `backend/src/routes/scenarios.ts` (added `SCN-ROADBLOCK` state preset)
-  - `frontend/src/components/StatusChip.tsx` (added `route_blocked` badge indicator)
+  - `backend/src/domain/recoveryEngine.ts` (added 2-tier exam prioritization & relay hop)
+  - `backend/src/domain/eligibility.ts` (enforced strict zero-grace exam deadline)
+  - `backend/src/routes/scenarios.ts` (added `SCN-EXAM-CRISIS` preset button)
+  - `frontend/src/components/StatusChip.tsx` (added `EXAM PRIORITY` badge)
 
 ---
 
