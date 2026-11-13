@@ -2,9 +2,14 @@ node_modules/
 **/node_modules/
 dist/
 **/dist/
-.env
+dist-ssr/
 *.local
+.env
 data/*.db
 data/*.db-wal
 data/*.db-shm
-
+.DS_Store
+.vscode
+.idea
+*.log
+.gstack/
