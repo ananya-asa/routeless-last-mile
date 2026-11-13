@@ -122,7 +122,7 @@ curl -X POST http://localhost:3000/api/triage/sarvam \
 ```bash
 cd backend
 npm run test
-# ✓ 12 tests passing (Vitest)
+# ✓ 13 tests passing (Vitest)
 ```
 
 ---

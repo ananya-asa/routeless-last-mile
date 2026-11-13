@@ -39,6 +39,22 @@ export function makeStudents(count: number, villageId: string = VILLAGE_C.id): E
   );
 }
 
+export function busB1(overrides: Partial<EngineVehicle> = {}): EngineVehicle {
+  return {
+    id: 'BUS-B1',
+    label: 'Bus B1 — Village A & B Express',
+    verified: true,
+    status: 'active',
+    villageIds: [VILLAGE_A.id, VILLAGE_B.id],
+    accessible: false,
+    capacity: 40,
+    occupiedSeats: 15,
+    arrivalMin: 525,
+    blockedCorridorIds: [],
+    ...overrides,
+  };
+}
+
 export function busB2(overrides: Partial<EngineVehicle> = {}): EngineVehicle {
   return {
     id: 'BUS-B2',
