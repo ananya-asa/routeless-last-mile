@@ -1,0 +1,19 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: routeless-backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/src:/app/src
+      - routeless_data:/data
+    environment:
+      - PORT=3000
+      - DB_PATH=/data/routeless.db
+    restart: unless-stopped
+
+volumes:
+  routeless_data:
+
