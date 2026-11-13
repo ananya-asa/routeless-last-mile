@@ -1,4 +1,4 @@
-// recoveryEngine.ts — Deterministic allocation heuristic with Exam Day Crisis prioritization
+// recoveryEngine.ts — Deterministic allocation heuristic with Exam Day Crisis prioritization & Relay Routes
 import { db } from '../db/client.js';
 import { isTransportEligible } from './eligibility.js';
 
@@ -18,6 +18,7 @@ export interface UnservedStudent {
   isExamDay: boolean;
   reason: string;
   explanation: string;
+  relayAlternative?: string;
 }
 
 export function runRecoveryEngine() {
@@ -77,6 +78,7 @@ export function runRecoveryEngine() {
   // 3. Deterministic greedy allocation with Exam Day priority
   for (const req of pendingRequests) {
     let assigned = false;
+    let failureReason = 'no_capacity';
     const isExam = req.isExamDay === 1;
 
     for (const transport of transportOptions) {
@@ -104,23 +106,32 @@ export function runRecoveryEngine() {
         allocatedSeatsMap[transport.id] = currentAlloc + 1;
         assigned = true;
         break;
+      } else if (check.reason === 'route_blocked') {
+        failureReason = 'route_blocked';
       }
     }
 
     if (!assigned) {
-      // Check for possible dry Relay Route bypass if direct road is blocked
-      const isRoadBlocked = transportOptions.some(t => t.blockedCorridors?.includes(req.corridorId));
-      const reason = isRoadBlocked ? 'route_blocked' : 'no_capacity';
-
-      unserved.push({
-        requestId: req.requestId,
-        studentId: req.studentId,
-        isExamDay: isExam,
-        reason,
-        explanation: isExam
-          ? `[CRITICAL EXAM ALERT] No verified vehicle with available seats before 09:00 AM deadline. Escalate to Institution Exam Transport Escort.`
-          : `Capacity or route constraints prevented automated rescue.`,
-      });
+      if (failureReason === 'route_blocked') {
+        unserved.push({
+          requestId: req.requestId,
+          studentId: req.studentId,
+          isExamDay: isExam,
+          reason: 'route_blocked',
+          explanation: `[ROUTE BLOCKED BY FLOOD] Southern corridor flooded. Direct transit unsafe.`,
+          relayAlternative: `Relay Route: Travel via Village B (Northern Junction) to connect with high-ground emergency shuttle.`,
+        });
+      } else {
+        unserved.push({
+          requestId: req.requestId,
+          studentId: req.studentId,
+          isExamDay: isExam,
+          reason: 'no_capacity',
+          explanation: isExam
+            ? `[CRITICAL EXAM ALERT] All verified seats exhausted before 09:00 AM deadline. Escalate to Institution Exam Transport Escort.`
+            : `Capacity or schedule constraints prevented automated rescue.`,
+        });
+      }
     }
   }
 

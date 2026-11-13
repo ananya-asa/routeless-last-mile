@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { StudentHome } from './pages/StudentHome';
 import { CoordinatorDashboard } from './pages/CoordinatorDashboard';
 import { DemoBadge } from './components/DemoBadge';
@@ -46,4 +46,3 @@ export default function App() {
     </div>
   );
 }
-
