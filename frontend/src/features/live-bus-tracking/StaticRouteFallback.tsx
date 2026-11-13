@@ -59,7 +59,7 @@ export function StaticRouteFallback({
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       role="img"
       aria-label={`Static preview of ${route.routeName}. The interactive map is unavailable.`}
-      preserveAspectRatio="xMidYMid slice"
+      preserveAspectRatio="xMidYMid meet"
     >
       <defs>
         <linearGradient id="lbt-fallback-bg" x1="0" y1="0" x2="0" y2="1">

@@ -107,6 +107,8 @@ function escapeHtml(value: string): string {
 
 function isRenderableRoute(route: BusRoute): boolean {
   return (
+    typeof route.routeName === 'string' &&
+    route.routeName.length > 0 &&
     Boolean(route.routeId) &&
     Boolean(route.busId) &&
     Array.isArray(route.coordinates) &&
@@ -121,12 +123,15 @@ function isRenderableRoute(route: BusRoute): boolean {
         Math.abs(pair[0]) <= 180,
     ) &&
     Array.isArray(route.stops) &&
+    route.stops.length >= 1 &&
     route.stops.every(
       (stop) =>
         Boolean(stop.id) &&
         typeof stop.name === 'string' &&
         Number.isFinite(stop.latitude) &&
-        Number.isFinite(stop.longitude),
+        Number.isFinite(stop.longitude) &&
+        Math.abs(stop.latitude) <= 90 &&
+        Math.abs(stop.longitude) <= 180,
     )
   );
 }
@@ -269,11 +274,22 @@ export function LiveBusTracking({
         setRouteStatus('ready');
 
         const initial = feed.getInitialLocation?.() ?? null;
-        if (initial && isValidLocation(initial)) setLocation(initial);
+        if (
+          initial &&
+          initial.busId === nextRoute.busId &&
+          isValidLocation(initial)
+        ) {
+          setLocation(initial);
+        }
 
         unsubscribe = feed.subscribe((nextLocation) => {
           if (!active) return;
-          if (isValidLocation(nextLocation)) setLocation(nextLocation);
+          if (
+            nextLocation.busId === nextRoute.busId &&
+            isValidLocation(nextLocation)
+          ) {
+            setLocation(nextLocation);
+          }
         });
       })
       .catch(fail);
@@ -359,10 +375,10 @@ export function LiveBusTracking({
           marker.bindTooltip(
             `<strong>${escapeHtml(stop.name)}</strong><br/>Stop ${index + 1} of ${route.stops.length}`,
             {
-              direction: index === 0 ? 'top' : 'bottom',
+              direction: index === 0 ? 'bottom' : 'top',
               className: 'lbt-stop-tooltip',
               permanent: isEndpoint,
-              offset: [0, index === 0 ? -8 : 8],
+              offset: [0, index === 0 ? 8 : -8],
             },
           );
         });
@@ -575,6 +591,13 @@ export function LiveBusTracking({
               <StaticRouteFallback route={route} location={location} />
             ) : null}
 
+            {mapStatus === 'loading' && route && routeStatus === 'ready' ? (
+              <span className="lbt__map-loading-pill" role="status">
+                <span className="lbt__spinner lbt__spinner--small" aria-hidden="true" />
+                Loading interactive map…
+              </span>
+            ) : null}
+
             {mapStatus === 'fallback' && route ? (
               <div className="lbt__map-fallback-note">
                 <AlertTriangle size={13} strokeWidth={2.4} aria-hidden="true" />
@@ -629,6 +652,18 @@ export function LiveBusTracking({
             ) : null}
           </div>
 
+          {routeStatus === 'ready' && progress ? (
+            <div className="lbt__mobile-next">
+              <MapPin size={14} strokeWidth={2.5} aria-hidden="true" />
+              <span>Next stop</span>
+              <strong>{progress.nextStop.name}</strong>
+              <span className="lbt__mobile-next-meta">
+                {formatDistance(progress.distanceToNextStopM)} ·{' '}
+                {nextStopEta === 0 ? 'arriving' : `~${nextStopEta ?? '—'} min`}
+              </span>
+            </div>
+          ) : null}
+
           <ul className="lbt__legend" aria-label="Map legend">
             <li>
               <span className="lbt__legend-swatch lbt__legend-swatch--travelled" />
@@ -662,7 +697,7 @@ export function LiveBusTracking({
                 <strong>{route?.busId ?? '—'}</strong>
                 <span>{route?.routeId ?? 'Loading route'}</span>
               </div>
-              {route ? (
+              {route && location ? (
                 <span className="lbt__vehicle-state">
                   <span aria-hidden="true" />
                   On route
