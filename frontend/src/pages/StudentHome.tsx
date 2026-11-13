@@ -135,6 +135,7 @@ const EN_MESSAGES = {
   noBackup: 'No verified backup',
   verifiedBackup: 'Verified backup available',
   classDeadline: 'Class deadline',
+  beforeClass: 'Before 09:00',
   accessible: 'Step-free access',
   driver: 'Driver',
   seats: 'seats',
@@ -179,6 +180,7 @@ const KN_MESSAGES: Messages = {
   noBackup: 'ಪರಿಶೀಲಿಸಿದ ಬ್ಯಾಕಪ್ ಇಲ್ಲ',
   verifiedBackup: 'ಪರಿಶೀಲಿಸಿದ ಬ್ಯಾಕಪ್ ಲಭ್ಯ',
   classDeadline: 'ತರಗತಿ ಗಡುವು',
+  beforeClass: '09:00ಕ್ಕೆ ಮೊದಲು',
   accessible: 'ಮೆಟ್ಟಿಲಿಲ್ಲದ ಪ್ರವೇಶ',
   driver: 'ಚಾಲಕ',
   seats: 'ಸೀಟುಗಳು',
@@ -684,7 +686,7 @@ function StudentHomeBody() {
               </span>
               <span className="student-hero__badge">
                 <Route size={12} aria-hidden="true" />
-                {t.commute.route} · {t.page.demoHint}
+                {t.commute.route}
               </span>
             </div>
           </div>
@@ -843,7 +845,7 @@ function StudentHomeBody() {
                     {t.commute.arrives}
                   </span>
                   <strong>{formatTime(selectedBus.arrival_min)}</strong>
-                  {onTime ? <small>{t.recovery.arrivesBefore}</small> : null}
+                  {onTime ? <small>{msgs.beforeClass}</small> : null}
                 </div>
                 <div className="student-time">
                   <span>
@@ -856,13 +858,13 @@ function StudentHomeBody() {
 
               <div className="student-seatline">
                 <span>
-                  <Users size={11} aria-hidden="true" /> {freeSeats}{' '}
-                  {t.commute.verifiedSeats}
+                  <Users size={11} aria-hidden="true" />{' '}
+                  {selectedBus.occupied_seats} {msgs.of} {selectedBus.capacity}{' '}
+                  {msgs.seats}
                 </span>
                 <span>
-                  {msgs.seats}:{' '}
                   <strong>
-                    {selectedBus.occupied_seats} {msgs.of} {selectedBus.capacity}
+                    {freeSeats} {msgs.free}
                   </strong>
                 </span>
               </div>
@@ -958,8 +960,229 @@ function StudentHomeBody() {
             </span>
           </button>
         </section>
-        {/* __HOME_RENDER_3__ */}
+        <section
+          className="student-panel student-recovery"
+          aria-labelledby="student-recovery-title"
+        >
+          <div className="student-panel__head">
+            <div>
+              <p className="student-step">{t.recovery.step}</p>
+              <h2 className="student-panel__title" id="student-recovery-title">
+                {t.recovery.title}
+              </h2>
+            </div>
+            <StatusChip
+              status={stage === 'idle' ? 'demo' : stage}
+              label={t.status[stage]}
+              dot={stage === 'reported' || stage === 'proposed'}
+            />
+          </div>
+
+          <StatusTimeline stage={stage} />
+
+          {stage === 'proposed' && proposal && backup ? (
+            <AssignmentCard
+              proposal={proposal}
+              status="proposed"
+              transport={backup}
+              villageName={village.name}
+              classStartMin={DEMO_CLASS_START_MIN}
+            />
+          ) : stage === 'confirmed' && proposal && backup ? (
+            <AssignmentCard
+              proposal={proposal}
+              status="confirmed"
+              transport={backup}
+              villageName={village.name}
+              classStartMin={DEMO_CLASS_START_MIN}
+            />
+          ) : stage === 'unserved' ? (
+            <EmptyState
+              tone="danger"
+              icon={<AlertTriangle size={20} />}
+              eyebrow={t.status.unserved}
+              title={stageTitle.unserved}
+              description={unservedExplanation}
+              action={
+                <button
+                  type="button"
+                  className="student-button student-button--amber"
+                  onClick={() => {
+                    void requestEscalation();
+                  }}
+                  disabled={busy}
+                >
+                  <LifeBuoy size={14} aria-hidden="true" />
+                  {t.recovery.escalate}
+                </button>
+              }
+              footer={<span>{t.recovery.noSms}</span>}
+            />
+          ) : stage === 'escalated' ? (
+            <EmptyState
+              tone="info"
+              icon={<LifeBuoy size={20} />}
+              eyebrow={t.status.escalated}
+              title={stageTitle.escalated}
+              description={stageBody.escalated}
+              footer={<span>{t.recovery.noSms}</span>}
+            />
+          ) : stage === 'idle' ? (
+            <EmptyState
+              icon={<HelpCircle size={20} />}
+              title={stageTitle.idle}
+              description={stageBody.idle}
+              footer={
+                <div>
+                  <p className="student-field__label">{msgs.next}</p>
+                  <ol className="student-next">
+                    {t.recovery.nextSteps.map((step, index) => (
+                      <li key={step}>
+                        <span>{index + 1}</span>
+                        {step}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              }
+            />
+          ) : (
+            <div
+              className={`student-stage student-stage--${
+                stage === 'reported' ? 'reported' : 'verified'
+              }`}
+            >
+              <div className="student-stage__head">
+                <span className="student-stage__icon" aria-hidden="true">
+                  {stage === 'reported' ? (
+                    <AlertTriangle size={17} />
+                  ) : (
+                    <ShieldCheck size={17} />
+                  )}
+                </span>
+                <StatusChip status={stage} label={t.status[stage]} />
+              </div>
+              <h3>{stageTitle[stage]}</h3>
+              <p>{stageBody[stage]}</p>
+              <p className="student-stage__note">
+                <Clock3 size={12} aria-hidden="true" />
+                {stage === 'reported'
+                  ? t.recovery.seated
+                  : t.recovery.draftNote}
+              </p>
+              <div>
+                <p className="student-field__label">{msgs.next}</p>
+                <ol className="student-next">
+                  {t.recovery.nextSteps.map((step, index) => (
+                    <li key={step}>
+                      <span>{index + 1}</span>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          )}
+
+          {stage !== 'idle' ? (
+            <div className="student-report-summary">
+              <div>
+                <p>{t.recovery.reportSummary}</p>
+                <strong>
+                  {displayIssue
+                    ? t.report.issues[displayIssue]
+                    : t.recovery.reportedTitle}
+                </strong>
+                <small>{displayDetails || msgs.detailsFallback}</small>
+                <small>
+                  {msgs.requestId}:{' '}
+                  {mode === 'live' ? liveRequest?.id ?? '—' : DEMO_REQUEST_ID}
+                </small>
+              </div>
+              <StatusChip
+                status={incidentConfirmed ? 'verified' : 'reported'}
+              />
+            </div>
+          ) : null}
+
+          {syncError || sse.status === 'error' ? (
+            <p className="student-alert" role="status">
+              <WifiOff size={14} aria-hidden="true" />
+              {syncError ?? msgs.syncPaused}
+              <button
+                type="button"
+                onClick={() => {
+                  setSyncError(null);
+                  void handleRefreshLive();
+                }}
+              >
+                {msgs.refresh}
+              </button>
+            </p>
+          ) : null}
+        </section>
       </div>
+
+      <footer className="student-footer">
+        <p>
+          <FlaskConical size={13} aria-hidden="true" />
+          {t.footer.data}
+        </p>
+        <button
+          type="button"
+          className="student-footer__replay"
+          onClick={replayIntro}
+        >
+          <RotateCcw size={12} aria-hidden="true" />
+          {t.footer.replay}
+        </button>
+      </footer>
+
+      <ReportSheet
+        open={reportOpen}
+        online={mode === 'live'}
+        villageName={village.name}
+        transportLabel={selectedBus?.label}
+        onClose={() => setReportOpen(false)}
+        onSubmit={(issue, details) => {
+          void handleReport(issue, details);
+        }}
+      />
+
+      {mode === 'preview' ? (
+        <DemoDock
+          stage={previewStage}
+          onConfirmIncident={handleConfirmIncident}
+          onDraftPlan={handleDraftPlan}
+          onApprovePlan={handleApprovePlan}
+          onForceUnserved={handleForceUnserved}
+          onEscalate={requestEscalation}
+          onReset={handleResetPreview}
+        />
+      ) : null}
+
+      {toast ? (
+        <div
+          className={`student-toast student-toast--${toast.tone}`}
+          role={toast.tone === 'error' ? 'alert' : 'status'}
+        >
+          {toast.tone === 'success' ? (
+            <CheckCircle2 size={16} aria-hidden="true" />
+          ) : toast.tone === 'error' ? (
+            <AlertTriangle size={16} aria-hidden="true" />
+          ) : (
+            <Info size={16} aria-hidden="true" />
+          )}
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            aria-label={msgs.closeToast}
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

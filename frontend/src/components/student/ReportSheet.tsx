@@ -180,9 +180,11 @@ export function ReportSheet({
                       {ISSUE_ICONS[type]}
                     </span>
                     <span>{t.report.issues[type]}</span>
-                    <span className="student-report__issue-check" aria-hidden="true">
-                      {active ? <Check size={12} strokeWidth={3} /> : null}
-                    </span>
+                    {active ? (
+                      <span className="student-report__issue-check" aria-hidden="true">
+                        <Check size={12} strokeWidth={3} />
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}

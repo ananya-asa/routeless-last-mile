@@ -2423,7 +2423,7 @@
   }
 
   .student-demo-trigger {
-    left: 12px;
+    left: auto;
     right: 12px;
     justify-content: center;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
@@ -2495,6 +2495,10 @@
 
   .student-report__issue-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-report__issue:last-child {
+    grid-column: 1 / -1;
   }
 
   .student-report__header h2 {
