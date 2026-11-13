@@ -1,32 +1,29 @@
-// metrics.ts — GET /api/metrics for Coordinator summary dashboard
+// ============================================================
+// metrics.ts — GET /api/metrics
+// Derived from canonical rows; never stored by hand.
+// ============================================================
+
 import { Hono } from 'hono';
-import { db } from '../db/client.js';
+import { computeMetrics } from '../domain/metrics.js';
+import { planRecovery } from '../domain/recoveryEngine.js';
+import { loadEngineInput } from './recoveryData.js';
 
 export const metricRoutes = new Hono();
 
 metricRoutes.get('/', (c) => {
-  const confirmedIncidents = (db.prepare(`SELECT COUNT(*) as c FROM incidents WHERE status = 'confirmed'`).get() as any).c;
-  const reportedIncidents = (db.prepare(`SELECT COUNT(*) as c FROM incidents WHERE status = 'reported'`).get() as any).c;
-  
-  const affectedRequests = (db.prepare(`
-    SELECT COUNT(DISTINCT r.id) as c 
-    FROM help_requests r
-    JOIN incidents i ON r.incident_id = i.id
-    WHERE i.status = 'confirmed'
-  `).get() as any).c;
-
-  const confirmedPlacements = (db.prepare(`
-    SELECT COUNT(*) as c FROM assignments WHERE status = 'confirmed'
-  `).get() as any).c;
-
-  const unserved = Math.max(0, affectedRequests - confirmedPlacements);
+  const input = loadEngineInput();
+  const metrics = computeMetrics(input);
+  const plan = planRecovery(input);
 
   return c.json({
-    confirmedIncidents,
-    reportedIncidents,
-    affectedRequests,
-    confirmedPlacements,
-    unserved,
+    affected: metrics.affectedRequests,
+    examStudents: plan.examStudentCount,
+    eligibleProposals: plan.proposedCount,
+    confirmedPlacements: metrics.confirmedPlacements,
+    unserved: metrics.unserved,
+    seatUsage: metrics.seatUsage,
+    freeSeats: metrics.freeSeats,
+    verifiedVehicles: input.vehicles.filter((vehicle) => vehicle.verified).length,
+    unverifiedVehicles: input.vehicles.filter((vehicle) => !vehicle.verified).length,
   });
 });
-

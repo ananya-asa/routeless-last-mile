@@ -20,6 +20,15 @@ scenarioRoutes.post('/reset/:id', (c) => {
   db.prepare('DELETE FROM incidents').run();
   db.prepare('DELETE FROM transport_blocked_corridors').run();
 
+  // Config-driven relay: Village C -> Village B junction, then verified BUS-B1.
+  // INSERT OR IGNORE keeps this idempotent across resets and older demo DBs.
+  db.prepare(`
+    INSERT OR IGNORE INTO relay_routes
+      (id, source_village_id, junction_village_id, connecting_transport_id,
+       walk_distance_km, corridor_id)
+    VALUES ('RLY-C-B', 'VLG-C', 'VLG-B', 'BUS-B1', 1.5, 'CRD-SOUTH')
+  `).run();
+
   if (scenarioId === 'SCN-BREAKDOWN') {
     // Reset to default standard demo fixture (B2 broken, V1 has 8 seats)
     db.prepare(`UPDATE transport_options SET status = 'active', occupied_seats = 0 WHERE id = 'BUS-B1'`).run();

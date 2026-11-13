@@ -80,6 +80,15 @@ export function seedIfEmpty() {
       for (const vid of t.villages) insertTV.run(t.id, vid);
     }
 
+    // ── Config-driven relay for a blocked Southern corridor ──
+    // Village C students can walk the dry path to Village B and board BUS-B1.
+    db.prepare(`
+      INSERT OR IGNORE INTO relay_routes
+        (id, source_village_id, junction_village_id, connecting_transport_id,
+         walk_distance_km, corridor_id)
+      VALUES ('RLY-C-B', 'VLG-C', 'VLG-B', 'BUS-B1', 1.5, 'CRD-SOUTH')
+    `).run();
+
     // ── Scenarios ─────────────────────────────────────────────
     const insertScenario = db.prepare(
       'INSERT INTO scenarios (id, name, description) VALUES (?, ?, ?)'

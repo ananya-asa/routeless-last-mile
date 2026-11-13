@@ -1,135 +1,293 @@
-// engine.test.ts — Vitest unit tests for allocation invariants
-import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '../db/client.js';
-import { runRecoveryEngine } from '../domain/recoveryEngine.js';
+import { describe, expect, it } from 'vitest';
+import { computeMetrics } from '../domain/metrics.js';
+import {
+  approveProposals,
+  availableSeatsFor,
+  cancelAssignment,
+  planRecovery,
+  type EngineInput,
+} from '../domain/recoveryEngine.js';
+import {
+  busB2,
+  makeIncident,
+  makeRequest,
+  makeStudent,
+  makeStudents,
+  vanV1,
+  VILLAGE_A,
+  VILLAGE_B,
+  VILLAGE_C,
+  villageCScenario,
+  type Scenario,
+} from './builders.js';
 
-describe('Recovery Engine Core Invariants', () => {
-  beforeEach(() => {
-    // Clean tables before each test
-    db.prepare('DELETE FROM assignments').run();
-    db.prepare('DELETE FROM help_requests').run();
-    db.prepare('DELETE FROM incident_villages').run();
-    db.prepare('DELETE FROM incidents').run();
-    db.prepare('DELETE FROM transport_blocked_corridors').run();
+function inputFrom(
+  scenario: Scenario,
+  overrides: Partial<EngineInput> = {},
+): EngineInput {
+  return {
+    villages: scenario.villages,
+    students: scenario.students,
+    vehicles: scenario.vehicles,
+    incidents: scenario.incidents,
+    requests: scenario.requests,
+    assignments: scenario.assignments,
+    ...overrides,
+  };
+}
 
-    // Default: Regular buses are active, backup Van V1 has 2 occupied of 10
-    db.prepare("UPDATE transport_options SET status = 'active', occupied_seats = 0, verified = 1 WHERE id = 'BUS-B1'").run();
-    db.prepare("UPDATE transport_options SET status = 'active', occupied_seats = 0, verified = 1 WHERE id = 'BUS-B2'").run();
-    db.prepare("UPDATE transport_options SET status = 'active', occupied_seats = 2, verified = 1 WHERE id = 'VAN-V1'").run();
+describe('ROUTELESS recovery engine', () => {
+  it('A — 12 Village C requests + V1 with 8 seats gives 8 proposed and 4 unserved', () => {
+    const plan = planRecovery(inputFrom(villageCScenario()));
+
+    expect(plan.affectedCount).toBe(12);
+    expect(plan.proposals).toHaveLength(8);
+    expect(plan.unserved).toHaveLength(4);
+    expect(new Set(plan.proposals.map((proposal) => proposal.requestId)).size).toBe(8);
+    expect(plan.proposals.every((proposal) => proposal.transportOptionId === 'VAN-V1')).toBe(true);
+    expect(plan.unserved.every((entry) => entry.reason === 'no_capacity')).toBe(true);
   });
 
-  it('Test A: Bus B2 breaks down, 12 Village C requests + Van V1 (8 seats free) -> 8 proposed, 4 unserved', () => {
-    // B2 is broken!
-    db.prepare("UPDATE transport_options SET status = 'cancelled' WHERE id = 'BUS-B2'").run();
+  it('B — zero backup vehicles gives 0 proposed and 12 unserved', () => {
+    const plan = planRecovery(inputFrom(villageCScenario(), { vehicles: [busB2()] }));
 
-    const incId = 'INC-A';
-    db.prepare("INSERT INTO incidents (id, transport_option_id, type, status, reported_by) VALUES (?, 'BUS-B2', 'breakdown', 'confirmed', 'coordinator')").run(incId);
-    db.prepare("INSERT INTO incident_villages (incident_id, village_id) VALUES (?, 'VLG-C')").run(incId);
+    expect(plan.proposals).toHaveLength(0);
+    expect(plan.unserved).toHaveLength(12);
+    expect(plan.unserved.every((entry) => entry.reason === 'no_verified_vehicle')).toBe(true);
+  });
 
-    const insertReq = db.prepare("INSERT INTO help_requests (id, student_id, incident_id, status) VALUES (?, ?, ?, 'pending')");
-    for (let i = 1; i <= 12; i++) {
-      insertReq.run(`REQ-${i}`, `STU-${i}`, incId);
+  it('C — an unverified vehicle is never assigned', () => {
+    const plan = planRecovery(
+      inputFrom(villageCScenario(), {
+        vehicles: [busB2(), vanV1({ verified: false })],
+      }),
+    );
+
+    expect(plan.proposals).toHaveLength(0);
+    expect(plan.unserved).toHaveLength(12);
+    expect(plan.unserved.every((entry) => entry.reason === 'no_verified_vehicle')).toBe(true);
+  });
+
+  it('D — a vehicle that excludes Village C is ineligible even with free seats', () => {
+    const plan = planRecovery(
+      inputFrom(villageCScenario(), {
+        vehicles: [busB2(), vanV1({ villageIds: [VILLAGE_A.id] })],
+      }),
+    );
+
+    expect(plan.proposals).toHaveLength(0);
+    expect(plan.unserved).toHaveLength(12);
+    expect(plan.unserved.every((entry) => entry.reason === 'incompatible_route')).toBe(true);
+  });
+
+  it('E — an ETA after exam start is ineligible (zero grace)', () => {
+    const scenario = villageCScenario();
+    const plan = planRecovery(
+      inputFrom(scenario, {
+        students: scenario.students.map((student) => ({ ...student, isExamDay: true })),
+        vehicles: [busB2(), vanV1({ arrivalMin: 545 })],
+      }),
+    );
+
+    expect(plan.proposals).toHaveLength(0);
+    expect(plan.unserved).toHaveLength(12);
+    expect(plan.unserved.every((entry) => entry.reason === 'too_late')).toBe(true);
+  });
+
+  it('F — two incidents sharing one van never exceed available seats', () => {
+    const students = makeStudents(12);
+    const incidentA = makeIncident('INC-B2-BREAKDOWN', 'BUS-B2');
+    const incidentB = makeIncident('INC-B4-BREAKDOWN', 'BUS-B4', {
+      affectedVillageIds: [VILLAGE_C.id],
+    });
+    const busB4 = busB2({ id: 'BUS-B4', label: 'Bus B4 — Government bus', occupiedSeats: 30 });
+
+    const requests = students.map((student, index) =>
+      makeRequest(
+        `REQ-${String(index + 1).padStart(3, '0')}`,
+        student.id,
+        index < 6 ? incidentA.id : incidentB.id,
+      ),
+    );
+
+    const plan = planRecovery({
+      villages: [VILLAGE_A, VILLAGE_C],
+      students,
+      vehicles: [busB2(), busB4, vanV1()],
+      incidents: [incidentA, incidentB],
+      requests,
+      assignments: [],
+    });
+
+    const seatsByVehicle = new Map<string, number>();
+    for (const proposal of plan.proposals) {
+      seatsByVehicle.set(
+        proposal.transportOptionId,
+        (seatsByVehicle.get(proposal.transportOptionId) ?? 0) + 1,
+      );
     }
 
-    const res = runRecoveryEngine();
-    expect(res.affectedCount).toBe(12);
-    expect(res.proposedCount).toBe(8);
-    expect(res.unservedCount).toBe(4);
-    expect(res.unserved[0].reason).toBe('no_capacity');
+    expect(plan.proposals).toHaveLength(8);
+    expect(plan.unserved).toHaveLength(4);
+    expect(seatsByVehicle.get('VAN-V1')).toBe(8);
+    expect(new Set(plan.proposals.map((proposal) => proposal.requestId)).size).toBe(
+      plan.proposals.length,
+    );
   });
 
-  it('Test B: Zero backup scenario -> 0 proposed, 12 unserved', () => {
-    // Disable all vehicles
-    db.prepare("UPDATE transport_options SET status = 'cancelled'").run();
+  it('G — approving twice never duplicates or overbooks', () => {
+    const input = inputFrom(villageCScenario());
+    const plan = planRecovery(input);
 
-    const incId = 'INC-B';
-    db.prepare("INSERT INTO incidents (id, transport_option_id, type, status, reported_by) VALUES (?, 'BUS-B2', 'breakdown', 'confirmed', 'coordinator')").run(incId);
-    db.prepare("INSERT INTO incident_villages (incident_id, village_id) VALUES (?, 'VLG-C')").run(incId);
+    const first = approveProposals(plan.proposals, input);
+    expect(first.ok).toBe(true);
+    expect(first.assignments).toHaveLength(8);
+    expect(first.assignments.every((assignment) => assignment.status === 'confirmed')).toBe(true);
 
-    const insertReq = db.prepare("INSERT INTO help_requests (id, student_id, incident_id, status) VALUES (?, ?, ?, 'pending')");
-    for (let i = 1; i <= 12; i++) {
-      insertReq.run(`REQ-${i}`, `STU-${i}`, incId);
-    }
+    const approvedRequestIds = new Set(first.assignments.map((assignment) => assignment.requestId));
+    const after = inputFrom(villageCScenario(), {
+      assignments: first.assignments,
+      requests: input.requests.map((request) =>
+        approvedRequestIds.has(request.id)
+          ? { ...request, status: 'confirmed' as const }
+          : request,
+      ),
+    });
 
-    const res = runRecoveryEngine();
-    expect(res.proposedCount).toBe(0);
-    expect(res.unservedCount).toBe(12);
+    const second = approveProposals(plan.proposals, after);
+    expect(second.ok).toBe(false);
+    expect(second.reason).toBe('already_assigned');
+    expect(second.assignments).toHaveLength(0);
+
+    const metrics = computeMetrics(after);
+    expect(metrics.seatUsage['VAN-V1']).toBe(10);
+    expect(metrics.confirmedPlacements).toBe(8);
+    expect(metrics.unserved).toBe(4);
+    expect(metrics.seatUsage['VAN-V1']).toBeLessThanOrEqual(10);
   });
 
-  it('Test C: Unverified vehicle -> 0 proposed to unverified option', () => {
-    db.prepare("UPDATE transport_options SET status = 'cancelled' WHERE id = 'BUS-B2'").run();
-    db.prepare("UPDATE transport_options SET verified = 0 WHERE id = 'VAN-V1'").run();
+  it('H — cancelling one confirmed assignment releases exactly one seat', () => {
+    const input = inputFrom(villageCScenario());
+    const plan = planRecovery(input);
+    const approved = approveProposals(plan.proposals, input).assignments;
+    expect(approved).toHaveLength(8);
 
-    const incId = 'INC-C';
-    db.prepare("INSERT INTO incidents (id, transport_option_id, type, status, reported_by) VALUES (?, 'BUS-B2', 'breakdown', 'confirmed', 'coordinator')").run(incId);
-    db.prepare("INSERT INTO incident_villages (incident_id, village_id) VALUES (?, 'VLG-C')").run(incId);
+    const cancelled = approved[0];
+    const afterCancel = cancelAssignment(approved, cancelled.id);
 
-    db.prepare("INSERT INTO help_requests (id, student_id, incident_id, status) VALUES ('REQ-C1', 'STU-1', ?, 'pending')").run(incId);
+    expect(availableSeatsFor(vanV1(), { assignments: approved })).toBe(0);
+    expect(availableSeatsFor(vanV1(), { assignments: afterCancel })).toBe(1);
 
-    const res = runRecoveryEngine();
-    expect(res.proposedCount).toBe(0);
-    expect(res.unservedCount).toBe(1);
+    const approvedRequestIds = new Set(approved.map((assignment) => assignment.requestId));
+    const requestsAfterCancel = input.requests.map((request) => {
+      if (request.id === cancelled.requestId) return { ...request, status: 'pending' as const };
+      if (approvedRequestIds.has(request.id)) return { ...request, status: 'confirmed' as const };
+      return { ...request, status: 'escalated' as const };
+    });
+
+    const replanned = planRecovery({
+      ...input,
+      assignments: afterCancel,
+      requests: requestsAfterCancel,
+    });
+
+    expect(replanned.proposals).toHaveLength(1);
+    expect(replanned.proposals[0].requestId).toBe(cancelled.requestId);
   });
 
-  it('Test D: Vehicle route excludes village -> no assignments to it', () => {
-    const incId = 'INC-D';
-    db.prepare("INSERT INTO incidents (id, transport_option_id, type, status, reported_by) VALUES (?, 'BUS-B1', 'breakdown', 'confirmed', 'coordinator')").run(incId);
-    db.prepare("INSERT INTO incident_villages (incident_id, village_id) VALUES (?, 'VLG-A')").run(incId);
+  it('I — an unconfirmed incident produces no allocation', () => {
+    const scenario = villageCScenario();
+    const input = inputFrom(scenario, {
+      incidents: scenario.incidents.map((incident) => ({
+        ...incident,
+        status: 'reported' as const,
+      })),
+    });
 
-    db.prepare("INSERT INTO help_requests (id, student_id, incident_id, status) VALUES ('REQ-D1', 'STU-1', ?, 'pending')").run(incId);
-
-    const res = runRecoveryEngine();
-    // Van V1 only serves Village C, so it cannot serve Village A!
-    expect(res.proposals.some(p => p.transportOptionId === 'VAN-V1')).toBe(false);
+    const plan = planRecovery(input);
+    expect(plan.proposals).toHaveLength(0);
+    expect(plan.unserved).toHaveLength(0);
+    expect(computeMetrics(input).affectedRequests).toBe(0);
   });
 
-  it('Test E: Exam Crisis: 17 students (+40% surge), 10 taking exams -> Exam students prioritized for all 8 seats', () => {
-    db.prepare("UPDATE transport_options SET status = 'cancelled' WHERE id IN ('BUS-B1', 'BUS-B2')").run();
+  it('J — the same input produces the same output (deterministic)', () => {
+    const input = inputFrom(villageCScenario());
+    const first = planRecovery(input);
+    const second = planRecovery(input);
 
-    const incId = 'INC-EXAM';
-    db.prepare("INSERT INTO incidents (id, transport_option_id, type, status, reported_by) VALUES (?, 'BUS-B2', 'breakdown', 'confirmed', 'coordinator')").run(incId);
-    db.prepare("INSERT INTO incident_villages (incident_id, village_id) VALUES (?, 'VLG-C')").run(incId);
-
-    const insertReq = db.prepare("INSERT INTO help_requests (id, student_id, incident_id, status, is_exam_day) VALUES (?, ?, ?, 'pending', ?)");
-    for (let i = 1; i <= 17; i++) {
-      const isExam = i <= 10 ? 1 : 0;
-      insertReq.run(`REQ-E-${i}`, `STU-${i}`, incId, isExam);
-    }
-
-    const res = runRecoveryEngine();
-    expect(res.affectedCount).toBe(17);
-    expect(res.examStudentCount).toBe(10);
-    expect(res.proposedCount).toBe(8);
-    // Every single proposal must belong to an exam student!
-    expect(res.proposals.every(p => p.isExamDay)).toBe(true);
-    expect(res.unservedCount).toBe(9);
+    expect(second).toEqual(first);
+    expect(second.proposals.map((proposal) => proposal.requestId)).toEqual(
+      first.proposals.map((proposal) => proposal.requestId),
+    );
   });
 
-  it('Test F: Flooded Corridor -> Rejection with route_blocked and Relay Alternative to Village B', () => {
-    db.prepare("UPDATE transport_options SET status = 'cancelled' WHERE id = 'BUS-B2'").run();
-    db.prepare("INSERT INTO transport_blocked_corridors (transport_id, corridor_id) VALUES ('VAN-V1', 'CRD-SOUTH')").run();
+  it('K — exam-day students are prioritised for every available seat', () => {
+    const students = makeStudents(17).map((student, index) => ({
+      ...student,
+      isExamDay: index < 10,
+    }));
+    const incident = makeIncident('INC-EXAM-CRISIS', 'BUS-B2');
+    const requests = students.map((student, index) =>
+      makeRequest(
+        `REQ-${String(index + 1).padStart(3, '0')}`,
+        student.id,
+        incident.id,
+      ),
+    );
 
-    const incId = 'INC-FLOOD';
-    db.prepare("INSERT INTO incidents (id, transport_option_id, type, status, reported_by) VALUES (?, 'BUS-B2', 'road_block', 'confirmed', 'coordinator')").run(incId);
-    db.prepare("INSERT INTO incident_villages (incident_id, village_id) VALUES (?, 'VLG-C')").run(incId);
+    const plan = planRecovery({
+      villages: [VILLAGE_A, VILLAGE_B, VILLAGE_C],
+      students,
+      vehicles: [busB2(), vanV1()],
+      incidents: [incident],
+      requests,
+      assignments: [],
+    });
 
-    db.prepare("INSERT INTO help_requests (id, student_id, incident_id, status, is_exam_day) VALUES ('REQ-F1', 'STU-1', ?, 'pending', 1)").run(incId);
-
-    const res = runRecoveryEngine();
-    expect(res.proposedCount).toBe(0);
-    expect(res.unserved[0].reason).toBe('route_blocked');
-    expect(res.unserved[0].relayAlternative).toContain('Village B');
+    expect(plan.affectedCount).toBe(17);
+    expect(plan.examStudentCount).toBe(10);
+    expect(plan.proposals).toHaveLength(8);
+    expect(plan.proposals.every((proposal) => proposal.isExamDay)).toBe(true);
+    expect(plan.unserved).toHaveLength(9);
   });
 
-  it('Test G: Deterministic output -> Identical input yields identical output', () => {
-    const incId = 'INC-G';
-    db.prepare("INSERT INTO incidents (id, transport_option_id, type, status, reported_by) VALUES (?, 'BUS-B2', 'breakdown', 'confirmed', 'coordinator')").run(incId);
-    db.prepare("INSERT INTO incident_villages (incident_id, village_id) VALUES (?, 'VLG-C')").run(incId);
+  it('L — a flooded corridor is route_blocked and offers the configured relay', () => {
+    const student = makeStudent('STU-001', VILLAGE_C.id, { isExamDay: true });
+    const incident = makeIncident('INC-FLOOD', 'BUS-B2', {
+      type: 'road_block',
+      affectedVillageIds: [VILLAGE_C.id],
+    });
 
-    db.prepare("INSERT INTO help_requests (id, student_id, incident_id, status) VALUES ('REQ-G1', 'STU-1', ?, 'pending')").run(incId);
+    const plan = planRecovery({
+      villages: [VILLAGE_A, VILLAGE_B, VILLAGE_C],
+      students: [student],
+      vehicles: [
+        busB2({ status: 'cancelled' }),
+        vanV1({ blockedCorridorIds: ['CRD-SOUTH'] }),
+      ],
+      incidents: [incident],
+      requests: [makeRequest('REQ-F1', student.id, incident.id, { isExamDay: true })],
+      assignments: [],
+      relayRoutes: [
+        {
+          id: 'RLY-C-B',
+          sourceVillageId: VILLAGE_C.id,
+          junctionVillageId: VILLAGE_B.id,
+          junctionName: VILLAGE_B.name,
+          connectingTransportId: 'BUS-B1',
+          connectingLabel: 'Bus B1 — Village A & B Express',
+          connectingVerified: true,
+          connectingStatus: 'active',
+          walkDistanceKm: 1.5,
+          corridorId: 'CRD-SOUTH',
+        },
+      ],
+    });
 
-    const res1 = runRecoveryEngine();
-    const res2 = runRecoveryEngine();
-    expect(res1).toEqual(res2);
+    expect(plan.proposals).toHaveLength(0);
+    expect(plan.unserved).toHaveLength(1);
+    expect(plan.unserved[0].reason).toBe('route_blocked');
+    expect(plan.unserved[0].relayAlternative).toContain('Village B');
   });
 });
+
