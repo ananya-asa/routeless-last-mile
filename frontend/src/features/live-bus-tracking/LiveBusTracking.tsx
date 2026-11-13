@@ -440,6 +440,12 @@ export function LiveBusTracking({
     bundle.ahead.setLatLngs(latlngs.slice(split));
 
     if (!location) {
+      if (busAnimationRef.current !== null) {
+        window.cancelAnimationFrame(busAnimationRef.current);
+        busAnimationRef.current = null;
+      }
+      displayedPositionRef.current = null;
+      lastFixTimeRef.current = null;
       if (bundle.bus) {
         bundle.bus.remove();
         bundle.bus = null;
@@ -449,17 +455,71 @@ export function LiveBusTracking({
 
     const position: [number, number] = [location.latitude, location.longitude];
     const icon = busIcon(bundle.L, location.heading ?? 0);
+    const fixTime = Date.parse(location.timestamp);
+    const reduceMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
 
     if (bundle.bus) {
-      bundle.bus.setLatLng(position);
-      bundle.bus.setIcon(icon);
+      const marker = bundle.bus;
+      const from = displayedPositionRef.current;
+      const previousFixTime = lastFixTimeRef.current;
+      const jumpM = from
+        ? haversineM([from[1], from[0]], [position[1], position[0]])
+        : 0;
+      const canAnimate =
+        Boolean(from) &&
+        jumpM > 2 &&
+        jumpM < 650 &&
+        Number.isFinite(fixTime) &&
+        previousFixTime !== null &&
+        fixTime > previousFixTime &&
+        !reduceMotion;
+
+      marker.setIcon(icon);
+
+      if (busAnimationRef.current !== null) {
+        window.cancelAnimationFrame(busAnimationRef.current);
+        busAnimationRef.current = null;
+      }
+
+      if (from && canAnimate && previousFixTime !== null) {
+        const duration = Math.min(
+          2000,
+          Math.max(500, (fixTime - previousFixTime) * 0.85),
+        );
+        const startedAt = performance.now();
+        const animate = (frameTime: number) => {
+          const ratio = Math.min(1, (frameTime - startedAt) / duration);
+          const eased = 1 - (1 - ratio) ** 3;
+          const next: [number, number] = [
+            from[0] + (position[0] - from[0]) * eased,
+            from[1] + (position[1] - from[1]) * eased,
+          ];
+          marker.setLatLng(next);
+          displayedPositionRef.current = next;
+          if (ratio < 1) {
+            busAnimationRef.current = window.requestAnimationFrame(animate);
+          } else {
+            busAnimationRef.current = null;
+            displayedPositionRef.current = position;
+          }
+        };
+        busAnimationRef.current = window.requestAnimationFrame(animate);
+      } else {
+        marker.setLatLng(position);
+        displayedPositionRef.current = position;
+      }
     } else {
       bundle.bus = bundle.L.marker(position, {
         icon,
         zIndexOffset: 1000,
         interactive: false,
       }).addTo(bundle.map);
+      displayedPositionRef.current = position;
     }
+
+    lastFixTimeRef.current = Number.isFinite(fixTime) ? fixTime : null;
 
     if (followRef.current) {
       bundle.map.panTo(position, { animate: true, duration: 0.7 });
