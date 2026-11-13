@@ -13,9 +13,9 @@ import {
   BusFront,
   CalendarClock,
   CheckCircle2,
+  CircleHelp,
   Clock3,
   FlaskConical,
-  HelpCircle,
   Info,
   Landmark,
   LifeBuoy,
@@ -27,6 +27,7 @@ import {
   RotateCcw,
   Route,
   ShieldCheck,
+  Sparkles,
   Users,
   Wifi,
   WifiOff,
@@ -45,11 +46,7 @@ import {
   latestRequestForStudent,
   reportIncident,
 } from '../api/client';
-import { AssignmentCard } from '../components/AssignmentCard';
-import { DemoBadge } from '../components/DemoBadge';
-import { EmptyState } from '../components/EmptyState';
 import { StatusChip } from '../components/StatusChip';
-import { BrandLogo } from '../components/student/BrandLogo';
 import { CrowdingChip } from '../components/student/CrowdingChip';
 import { DemoDock } from '../components/student/DemoDock';
 import {
@@ -71,7 +68,6 @@ import {
 } from '../components/student/demo';
 import { LanguageProvider, useCopy, type Lang } from '../components/student/i18n';
 import { ReportSheet } from '../components/student/ReportSheet';
-import { RouteScene } from '../components/student/RouteScene';
 import { SplashScreen } from '../components/student/SplashScreen';
 import { StatusTimeline } from '../components/student/StatusTimeline';
 import { useSSE } from '../hooks/useSSE';
@@ -112,12 +108,12 @@ async function loadLiveData(): Promise<LiveData> {
 }
 
 const EN_MESSAGES = {
-  connecting: 'Checking the demo backend…',
-  liveBackend: 'Demo backend connected',
-  previewMode: 'Preview mode',
+  connecting: 'Checking connection…',
+  liveBackend: 'Live demo',
+  previewMode: 'Preview data',
   liveSub: 'Live demo data · still simulated',
   previewSub: 'Simulated on this device',
-  retry: 'Try live connection',
+  retry: 'Connect',
   cannotReach: "Can't reach the demo backend. Preview mode stays on.",
   syncPaused: 'Live updates paused. Retrying…',
   reportSaved: 'Report saved on this device. Preview mode — not sent to school.',
@@ -157,12 +153,12 @@ const EN_MESSAGES = {
 type Messages = { [K in keyof typeof EN_MESSAGES]: string };
 
 const KN_MESSAGES: Messages = {
-  connecting: 'ಡೆಮೊ ಬ್ಯಾಕೆಂಡ್ ಪರಿಶೀಲಿಸುತ್ತಿದೆ…',
-  liveBackend: 'ಡೆಮೊ ಬ್ಯಾಕೆಂಡ್ ಸಂಪರ್ಕಗೊಂಡಿದೆ',
-  previewMode: 'ಮುನ್ನೋಟ ಮೋಡ್',
+  connecting: 'ಸಂಪರ್ಕ ಪರಿಶೀಲಿಸುತ್ತಿದೆ…',
+  liveBackend: 'ನೇರ ಡೆಮೊ',
+  previewMode: 'ಮುನ್ನೋಟ ಡೇಟಾ',
   liveSub: 'ನೇರ ಡೆಮೊ ಡೇಟಾ · ಸಿಮ್ಯುಲೇಟೆಡ್',
   previewSub: 'ಈ ಸಾಧನದಲ್ಲಿ ಸಿಮ್ಯುಲೇಟೆಡ್',
-  retry: 'ನೇರ ಸಂಪರ್ಕ ಪ್ರಯತ್ನಿಸಿ',
+  retry: 'ಸಂಪರ್ಕಿಸಿ',
   cannotReach: 'ಡೆಮೊ ಬ್ಯಾಕೆಂಡ್ ಸಿಗುತ್ತಿಲ್ಲ. ಮುನ್ನೋಟ ಮೋಡ್ ಮುಂದುವರಿಯುತ್ತದೆ.',
   syncPaused: 'ನೇರ ನವೀಕರಣ ನಿಂತಿದೆ. ಮರುಸಂಪರ್ಕ…',
   reportSaved: 'ವರದಿ ಈ ಸಾಧನದಲ್ಲಿ ಉಳಿಸಲಾಗಿದೆ. ಮುನ್ನೋಟ — ಶಾಲೆಗೆ ಕಳುಹಿಸಿಲ್ಲ.',
@@ -433,17 +429,20 @@ function StudentHomeBody() {
   const freeSeats = selectedBus
     ? Math.max(0, selectedBus.capacity - selectedBus.occupied_seats)
     : 0;
-  const occupancy = selectedBus
-    ? Math.min(
-        100,
-        Math.round(
-          (selectedBus.occupied_seats / Math.max(1, selectedBus.capacity)) * 100,
-        ),
-      )
-    : 100;
   const onTime = selectedBus
     ? selectedBus.arrival_min <= DEMO_CLASS_START_MIN
     : false;
+  const freePercent = selectedBus
+    ? Math.round((freeSeats / Math.max(1, selectedBus.capacity)) * 100)
+    : 0;
+
+  const recoveryVehicle = backup ?? selectedBus;
+  const recoveryFreeSeats = recoveryVehicle
+    ? Math.max(0, recoveryVehicle.capacity - recoveryVehicle.occupied_seats)
+    : 0;
+  const recoveryMinutesEarly = recoveryVehicle
+    ? Math.max(0, DEMO_CLASS_START_MIN - recoveryVehicle.arrival_min)
+    : 0;
 
   const proposal = useMemo<RecoveryProposal | null>(() => {
     const vehicle = backup ?? selectedBus;
@@ -530,7 +529,7 @@ function StudentHomeBody() {
           if (incidentId) {
             await createHelpRequest(STUDENT_ID, incidentId);
           }
-        } catch (error: any) {
+        } catch (error) {
           // A request for this student + incident already exists: that is fine.
           if (!(error instanceof ApiError && error.status === 409)) throw error;
         }
@@ -612,181 +611,130 @@ function StudentHomeBody() {
     notify('info', msgs.resetPreview);
   }, [notify, msgs.resetPreview]);
 
-  const modeLabel =
-    mode === 'checking'
-      ? msgs.connecting
-      : mode === 'live'
-        ? msgs.liveBackend
-        : msgs.previewMode;
-  const modeSub =
-    mode === 'checking'
-      ? msgs.connecting
-      : mode === 'live'
-        ? msgs.liveSub
-        : msgs.previewSub;
-
   return (
     <div className="student-app" lang={lang}>
       {splashOpen ? <SplashScreen onEnter={dismissSplash} /> : null}
-      <section className="student-hero" aria-labelledby="student-hero-title">
-        <RouteScene variant="hero" className="student-hero__scene" />
-        <div className="student-hero__veil" aria-hidden="true" />
-
-        <div className="student-hero__inner">
-          <div className="student-hero__top">
-            <BrandLogo
-              variant="light"
-              size={42}
-              tagline={lang === 'kn' ? 'ವಿದ್ಯಾರ್ಥಿ ಆಗಮನ ಭರವಸೆ' : 'Student arrival assurance'}
+      <header className="student-welcome">
+        <div className="student-welcome__intro">
+          <p className="student-eyebrow">
+            <span className="student-eyebrow__dot" aria-hidden="true" />
+            {t.page.kicker}
+          </p>
+          <h1 className="student-welcome__title">{t.page.title}</h1>
+          <p className="student-welcome__sub">{t.page.subtitle}</p>
+          <div className="student-route-summary">
+            <span className="student-route-summary__point">
+              <MapPin size={13} aria-hidden="true" />
+              {village.name}
+            </span>
+            <ArrowRight
+              size={13}
+              className="student-route-summary__arrow"
+              aria-hidden="true"
             />
-
-            <div className="student-hero__actions">
-              <span className={`student-conn student-conn--${mode}`}>
-                {mode === 'checking' ? (
-                  <Loader2 size={12} className="student-spin" aria-hidden="true" />
-                ) : mode === 'live' ? (
-                  <Wifi size={12} aria-hidden="true" />
-                ) : (
-                  <WifiOff size={12} aria-hidden="true" />
-                )}
-                {modeLabel}
-              </span>
-              <button
-                type="button"
-                className="student-ghost-button"
-                onClick={replayIntro}
-              >
-                <RotateCcw size={12} aria-hidden="true" />
-                {t.page.replayIntro}
-              </button>
-              <button
-                type="button"
-                className="student-lang-button"
-                onClick={() => setLang(lang === 'en' ? 'kn' : 'en')}
-                aria-label={t.switchLanguageAria}
-              >
-                {t.switchLanguage}
-              </button>
-            </div>
-          </div>
-
-          <div className="student-hero__copy">
-            <p className="student-kicker">
-              <span aria-hidden="true" />
-              {t.page.kicker}
-            </p>
-            <h1 className="student-hero__title" id="student-hero-title">
-              {t.page.title} <em>{t.page.titleAccent}</em> {t.page.titleTail}
-            </h1>
-            <p className="student-hero__sub">{t.page.subtitle}</p>
-
-            <div className="student-hero__badges">
-              <DemoBadge label={t.demo} />
-              <span className="student-hero__badge">
-                <Clock3 size={12} aria-hidden="true" />
-                {msgs.classDeadline} · 09:00
-              </span>
-              <span className="student-hero__badge">
-                <Route size={12} aria-hidden="true" />
-                {t.commute.route}
-              </span>
-            </div>
-          </div>
-
-          <div className="student-hero__strip">
-            <div className="student-hero__stat">
-              <span>{t.commute.village}</span>
-              <strong>{village.name}</strong>
-            </div>
-            <div className="student-hero__stat">
-              <span>{t.commute.college}</span>
-              <strong>Demo District College</strong>
-            </div>
-            <div className="student-hero__stat">
-              <span>{msgs.mode}</span>
-              <strong>{modeSub}</strong>
-            </div>
+            <span className="student-route-summary__point">
+              <Landmark size={13} aria-hidden="true" />
+              Demo District College
+            </span>
+            <span className="student-route-summary__time">
+              <Clock3 size={12} aria-hidden="true" />
+              {t.page.classAt}
+            </span>
           </div>
         </div>
-      </section>
 
-      {mode === 'checking' ? (
-        <div className="student-mode-banner" role="status">
-          <Loader2 size={16} className="student-spin" aria-hidden="true" />
-          <div>
-            <strong>{msgs.connecting}</strong>
-          </div>
-        </div>
-      ) : mode === 'preview' ? (
-        <div className="student-mode-banner" role="status">
-          <WifiOff size={16} aria-hidden="true" />
-          <div>
-            <strong>{msgs.previewMode}</strong>
-            <span>{msgs.previewNote}</span>
-          </div>
+        <div className="student-tools">
+          <span className={`student-mode-pill student-mode-pill--${mode}`} role="status">
+            {mode === 'checking' ? (
+              <Loader2 size={12} className="student-spin" aria-hidden="true" />
+            ) : mode === 'live' ? (
+              <Wifi size={12} aria-hidden="true" />
+            ) : (
+              <WifiOff size={12} aria-hidden="true" />
+            )}
+            {mode === 'checking'
+              ? t.page.checking
+              : mode === 'live'
+                ? t.live
+                : t.page.preview}
+          </span>
+
+          {mode === 'preview' ? (
+            <button
+              type="button"
+              className="student-tool-link"
+              onClick={() => {
+                void handleRetryLive();
+              }}
+            >
+              <RefreshCw size={12} aria-hidden="true" />
+              {t.page.connect}
+            </button>
+          ) : mode === 'live' ? (
+            <button
+              type="button"
+              className="student-icon-button"
+              onClick={() => {
+                void handleRefreshLive();
+              }}
+              aria-label={t.page.refresh}
+              disabled={busy}
+            >
+              <RefreshCw
+                size={14}
+                className={busy ? 'student-spin' : undefined}
+                aria-hidden="true"
+              />
+            </button>
+          ) : null}
+
           <button
             type="button"
-            onClick={() => {
-              void handleRetryLive();
-            }}
+            className="student-lang-button"
+            onClick={() => setLang(lang === 'en' ? 'kn' : 'en')}
+            aria-label={t.switchLanguageAria}
           >
-            {msgs.retry}
+            {t.switchLanguage}
           </button>
-        </div>
-      ) : (
-        <div className="student-mode-banner student-mode-banner--live" role="status">
-          <Wifi size={16} aria-hidden="true" />
-          <div>
-            <strong>{msgs.liveBackend}</strong>
-            <span>{msgs.liveNote}</span>
-          </div>
+
           <button
             type="button"
-            onClick={() => {
-              void handleRefreshLive();
-            }}
+            className="student-icon-button"
+            onClick={replayIntro}
+            aria-label={t.page.replayIntro}
+            title={t.page.replayIntro}
           >
-            {msgs.refresh}
+            <RotateCcw size={14} aria-hidden="true" />
           </button>
         </div>
-      )}
+      </header>
 
       <div className="student-grid">
-        <section className="student-panel" aria-labelledby="student-commute-title">
-          <div className="student-panel__head">
-            <div>
-              <p className="student-step">{t.commute.step}</p>
-              <h2 className="student-panel__title" id="student-commute-title">
-                {t.commute.title}
+        <section
+          className="student-card student-commute"
+          aria-labelledby="student-commute-title"
+        >
+          <div className="student-card__head">
+            <div className="student-card__heading">
+              <p className="student-label">
+                <BusFront size={12} aria-hidden="true" />
+                {t.commute.step}
+              </p>
+              <h2 className="student-card__title" id="student-commute-title">
+                {selectedBus ? selectedBus.label : t.commute.noBus}
               </h2>
-              <p className="student-panel__sub">{t.commute.subtitle}</p>
+              <p className="student-card__sub">{t.commute.subtitle}</p>
             </div>
-            {mode === 'live' ? (
-              <button
-                type="button"
-                className="student-icon-button"
-                onClick={() => {
-                  void handleRefreshLive();
-                }}
-                aria-label={msgs.refresh}
-                disabled={busy}
-              >
-                <RefreshCw
-                  size={15}
-                  className={busy ? 'student-spin' : undefined}
-                  aria-hidden="true"
-                />
-              </button>
-            ) : null}
+            <StatusChip status={busStatus} dot />
           </div>
 
-          <div className="student-field">
-            <p className="student-field__label">
-              <MapPin size={11} aria-hidden="true" />
+          <div className="student-village-block">
+            <span className="student-label">
+              <MapPin size={12} aria-hidden="true" />
               {t.commute.village}
-            </p>
+            </span>
             <div
-              className="student-villages"
+              className="student-segmented"
               role="group"
               aria-label={t.commute.village}
             >
@@ -794,56 +742,56 @@ function StudentHomeBody() {
                 <button
                   key={option.id}
                   type="button"
-                  className="student-village"
+                  className={`student-segment${
+                    option.id === villageId ? ' is-active' : ''
+                  }`}
                   aria-pressed={option.id === villageId}
                   onClick={() => setVillageId(option.id)}
                 >
                   {option.name}
-                  <small>{option.corridor_id}</small>
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="student-route-line">
-            <MapPin size={12} aria-hidden="true" />
-            <strong>{village.name}</strong>
-            <ArrowRight size={12} aria-hidden="true" />
-            <Landmark size={12} aria-hidden="true" />
-            <span>
-              {t.commute.college} · Demo District College
-            </span>
-          </div>
-
-          <p className="student-field__label">
-            <BusFront size={11} aria-hidden="true" />
-            {t.commute.bus}
-          </p>
-
           {selectedBus ? (
             <article className="student-bus">
-              <div className="student-bus__head">
-                <div>
-                  <span className="student-bus__id">
-                    <Route size={11} aria-hidden="true" />
-                    {t.commute.route} · {selectedBus.id}
+              <div className="student-bus__top">
+                <div className="student-bus__identity">
+                  <span className="student-bus__badge" aria-hidden="true">
+                    {selectedBus.id.replace('BUS-', '')}
                   </span>
-                  <h3 className="student-bus__label">{selectedBus.label}</h3>
+                  <div>
+                    <p className="student-bus__route">
+                      <Route size={11} aria-hidden="true" />
+                      {t.commute.route} · {selectedBus.id}
+                    </p>
+                    <p className="student-bus__kind">
+                      {selectedBus.kind === 'government_bus'
+                        ? msgs.transport
+                        : msgs.verifiedBackup}
+                    </p>
+                  </div>
                 </div>
-                <StatusChip status={busStatus} dot />
+                {selectedBus.accessible ? (
+                  <span className="student-small-pill">
+                    <Accessibility size={11} aria-hidden="true" />
+                    {msgs.accessible}
+                  </span>
+                ) : null}
               </div>
 
-              <div className="student-bus__times">
+              <div className="student-times">
                 <div className="student-time">
                   <span>
-                    <MapPin size={10} aria-hidden="true" />
+                    <MapPin size={11} aria-hidden="true" />
                     {t.commute.pickup}
                   </span>
                   <strong>{formatTime(selectedBus.departure_min)}</strong>
                 </div>
-                <div className="student-time">
+                <div className="student-time student-time--accent">
                   <span>
-                    <Clock3 size={10} aria-hidden="true" />
+                    <Clock3 size={11} aria-hidden="true" />
                     {t.commute.arrives}
                   </span>
                   <strong>{formatTime(selectedBus.arrival_min)}</strong>
@@ -851,95 +799,72 @@ function StudentHomeBody() {
                 </div>
                 <div className="student-time">
                   <span>
-                    <CalendarClock size={10} aria-hidden="true" />
+                    <CalendarClock size={11} aria-hidden="true" />
                     {t.commute.class}
                   </span>
                   <strong>{formatTime(DEMO_CLASS_START_MIN)}</strong>
                 </div>
               </div>
 
-              <div className="student-seatline">
-                <span>
-                  <Users size={11} aria-hidden="true" />{' '}
-                  {selectedBus.occupied_seats} {msgs.of} {selectedBus.capacity}{' '}
-                  {msgs.seats}
-                </span>
-                <span>
-                  <strong>
-                    {freeSeats} {msgs.free}
-                  </strong>
-                </span>
-              </div>
-              <div
-                className="student-seatbar"
-                role="img"
-                aria-label={`${selectedBus.occupied_seats} ${msgs.of} ${selectedBus.capacity} ${msgs.seats}`}
-              >
-                <i style={{ width: `${occupancy}%` }} />
+              <div className="student-seats">
+                <div className="student-seats__head">
+                  <span>
+                    <Users size={12} aria-hidden="true" />
+                    <strong>{freeSeats}</strong> {t.commute.seatsFreeShort}
+                  </span>
+                  <span className="student-seats__total">
+                    {selectedBus.occupied_seats} / {selectedBus.capacity} {msgs.seats}
+                  </span>
+                </div>
+                <div
+                  className="student-seatbar"
+                  role="img"
+                  aria-label={`${freeSeats} ${t.commute.seatsFreeShort}`}
+                >
+                  <i style={{ width: `${freePercent}%` }} />
+                </div>
               </div>
 
-              <div className="student-bus__facts">
-                {selectedBus.accessible ? (
-                  <span className="student-fact">
-                    <Accessibility size={11} aria-hidden="true" />
-                    {msgs.accessible}
+              <div className="student-demand-row">
+                <CrowdingChip
+                  level={crowding.level}
+                  label={crowdingLabel}
+                  detail={crowdingDetail}
+                />
+                <span className="student-demand-note">{t.commute.notLive}</span>
+              </div>
+
+              <div className="student-bus__meta">
+                {selectedBus.driver_name ? (
+                  <span>
+                    {msgs.driver}: <strong>{selectedBus.driver_name}</strong>
                   </span>
                 ) : null}
+                {selectedBus.contact ? (
+                  <a href={`tel:${selectedBus.contact}`}>
+                    <Phone size={11} aria-hidden="true" />
+                    {selectedBus.contact}
+                  </a>
+                ) : null}
                 {selectedBus.verified ? (
-                  <span className="student-fact">
+                  <span className="student-bus__verified">
                     <ShieldCheck size={11} aria-hidden="true" />
                     {t.commute.verified}
                   </span>
                 ) : null}
-                <span className="student-fact">
-                  <BusFront size={11} aria-hidden="true" />
-                  {selectedBus.kind === 'government_bus'
-                    ? msgs.transport
-                    : msgs.verifiedBackup}
-                </span>
               </div>
-
-              {selectedBus.driver_name ? (
-                <div className="student-driver">
-                  <span>
-                    {msgs.driver}: <strong>{selectedBus.driver_name}</strong>
-                  </span>
-                  {selectedBus.contact ? (
-                    <a href={`tel:${selectedBus.contact}`}>
-                      <Phone size={10} aria-hidden="true" />
-                      {selectedBus.contact}
-                    </a>
-                  ) : null}
-                </div>
-              ) : null}
             </article>
           ) : (
-            <EmptyState
-              tone="danger"
-              icon={<BusFront size={20} />}
-              title={t.commute.noBus}
-              description={t.commute.noBusBody}
-            />
-          )}
-
-          {stage !== 'idle' ? (
-            <p className="student-alert">
-              <AlertTriangle size={14} aria-hidden="true" />
-              {incidentConfirmed ? t.commute.verifiedBody : t.commute.disruptionBody}
-            </p>
-          ) : null}
-
-          <div className="student-demand">
-            <div>
-              <p className="student-field__label">{t.commute.demand}</p>
-              <CrowdingChip
-                level={crowding.level}
-                label={crowdingLabel}
-                detail={crowdingDetail}
-              />
+            <div className="student-empty">
+              <span className="student-empty__icon" aria-hidden="true">
+                <BusFront size={20} />
+              </span>
+              <div>
+                <h3>{t.commute.noBus}</h3>
+                <p>{t.commute.noBusBody}</p>
+              </div>
             </div>
-            <span className="student-demand__note">{t.commute.notLive}</span>
-          </div>
+          )}
 
           <button
             type="button"
@@ -947,29 +872,37 @@ function StudentHomeBody() {
             onClick={() => setReportOpen(true)}
             disabled={busy || mode === 'checking'}
           >
-            <span>
+            <span className="student-report-cta__icon" aria-hidden="true">
+              {busy ? (
+                <Loader2 size={17} className="student-spin" />
+              ) : (
+                <Megaphone size={17} />
+              )}
+            </span>
+            <span className="student-report-cta__copy">
               <strong>
                 {stage === 'idle' ? t.commute.report : t.commute.reportAgain}
               </strong>
               <small>{t.commute.reportHint}</small>
             </span>
-            <span className="student-report-cta__icon" aria-hidden="true">
-              {busy ? (
-                <Loader2 size={18} className="student-spin" />
-              ) : (
-                <Megaphone size={18} />
-              )}
-            </span>
+            <ArrowRight
+              className="student-report-cta__arrow"
+              size={17}
+              aria-hidden="true"
+            />
           </button>
         </section>
-        <section
-          className="student-panel student-recovery"
+        <aside
+          className="student-card student-recovery"
           aria-labelledby="student-recovery-title"
         >
-          <div className="student-panel__head">
-            <div>
-              <p className="student-step">{t.recovery.step}</p>
-              <h2 className="student-panel__title" id="student-recovery-title">
+          <div className="student-card__head">
+            <div className="student-card__heading">
+              <p className="student-label">
+                <ShieldCheck size={12} aria-hidden="true" />
+                {t.recovery.step}
+              </p>
+              <h2 className="student-card__title" id="student-recovery-title">
                 {t.recovery.title}
               </h2>
             </div>
@@ -982,30 +915,66 @@ function StudentHomeBody() {
 
           <StatusTimeline stage={stage} />
 
-          {stage === 'proposed' && proposal && backup ? (
-            <AssignmentCard
-              proposal={proposal}
-              status="proposed"
-              transport={backup}
-              villageName={village.name}
-              classStartMin={DEMO_CLASS_START_MIN}
-            />
-          ) : stage === 'confirmed' && proposal && backup ? (
-            <AssignmentCard
-              proposal={proposal}
-              status="confirmed"
-              transport={backup}
-              villageName={village.name}
-              classStartMin={DEMO_CLASS_START_MIN}
-            />
-          ) : stage === 'unserved' ? (
-            <EmptyState
-              tone="danger"
-              icon={<AlertTriangle size={20} />}
-              eyebrow={t.status.unserved}
-              title={stageTitle.unserved}
-              description={unservedExplanation}
-              action={
+          <div className="student-recovery__body">
+            {stage === 'proposed' || stage === 'confirmed' ? (
+              <div className={`student-seat-offer student-seat-offer--${stage}`}>
+                <div className="student-seat-offer__head">
+                  <span className="student-seat-offer__icon" aria-hidden="true">
+                    {stage === 'confirmed' ? (
+                      <CheckCircle2 size={20} />
+                    ) : (
+                      <Sparkles size={19} />
+                    )}
+                  </span>
+                  <div className="student-seat-offer__copy">
+                    <p>
+                      {stage === 'confirmed'
+                        ? t.recovery.seatConfirmed
+                        : t.recovery.seatDraft}
+                    </p>
+                    <h3>{proposal?.transportLabel ?? recoveryVehicle?.label}</h3>
+                  </div>
+                </div>
+
+                {recoveryVehicle ? (
+                  <div className="student-seat-offer__stats">
+                    <div>
+                      <span>{t.commute.pickup}</span>
+                      <strong>{formatTime(recoveryVehicle.departure_min)}</strong>
+                    </div>
+                    <div>
+                      <span>{t.commute.arrives}</span>
+                      <strong>{formatTime(recoveryVehicle.arrival_min)}</strong>
+                      <small>
+                        {recoveryMinutesEarly} {t.recovery.early}
+                      </small>
+                    </div>
+                    <div>
+                      <span>{t.recovery.freeSeats}</span>
+                      <strong>{recoveryFreeSeats}</strong>
+                      <small>/ {recoveryVehicle.capacity}</small>
+                    </div>
+                  </div>
+                ) : null}
+
+                <p className="student-seat-offer__route">
+                  <MapPin size={12} aria-hidden="true" />
+                  {village.name} → Demo District College
+                </p>
+
+                <p className="student-seat-offer__note">
+                  {stage === 'confirmed'
+                    ? t.recovery.seatNoteConfirmed
+                    : t.recovery.seatNoteDraft}
+                </p>
+              </div>
+            ) : stage === 'unserved' ? (
+              <div className="student-recovery-state student-recovery-state--danger">
+                <span className="student-recovery-state__icon" aria-hidden="true">
+                  <AlertTriangle size={20} />
+                </span>
+                <h3>{stageTitle.unserved}</h3>
+                <p>{unservedExplanation}</p>
                 <button
                   type="button"
                   className="student-button student-button--amber"
@@ -1017,112 +986,93 @@ function StudentHomeBody() {
                   <LifeBuoy size={14} aria-hidden="true" />
                   {t.recovery.escalate}
                 </button>
-              }
-              footer={<span>{t.recovery.noSms}</span>}
-            />
-          ) : stage === 'escalated' ? (
-            <EmptyState
-              tone="info"
-              icon={<LifeBuoy size={20} />}
-              eyebrow={t.status.escalated}
-              title={stageTitle.escalated}
-              description={stageBody.escalated}
-              footer={<span>{t.recovery.noSms}</span>}
-            />
-          ) : stage === 'idle' ? (
-            <EmptyState
-              icon={<HelpCircle size={20} />}
-              title={stageTitle.idle}
-              description={stageBody.idle}
-              footer={
-                <div>
-                  <p className="student-field__label">{msgs.next}</p>
-                  <ol className="student-next">
-                    {t.recovery.nextSteps.map((step, index) => (
-                      <li key={step}>
-                        <span>{index + 1}</span>
-                        {step}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              }
-            />
-          ) : (
-            <div
-              className={`student-stage student-stage--${
-                stage === 'reported' ? 'reported' : 'verified'
-              }`}
-            >
-              <div className="student-stage__head">
-                <span className="student-stage__icon" aria-hidden="true">
+                <small>{t.recovery.noSms}</small>
+              </div>
+            ) : stage === 'escalated' ? (
+              <div className="student-recovery-state student-recovery-state--info">
+                <span className="student-recovery-state__icon" aria-hidden="true">
+                  <LifeBuoy size={20} />
+                </span>
+                <h3>{stageTitle.escalated}</h3>
+                <p>{stageBody.escalated}</p>
+                <small>{t.recovery.noSms}</small>
+              </div>
+            ) : stage === 'reported' || stage === 'verified' ? (
+              <div
+                className={`student-recovery-state student-recovery-state--${stage}`}
+              >
+                <span className="student-recovery-state__icon" aria-hidden="true">
                   {stage === 'reported' ? (
-                    <AlertTriangle size={17} />
+                    <AlertTriangle size={20} />
                   ) : (
-                    <ShieldCheck size={17} />
+                    <ShieldCheck size={20} />
                   )}
                 </span>
-                <StatusChip status={stage} label={t.status[stage]} />
+                <h3>{stageTitle[stage]}</h3>
+                <p>{stageBody[stage]}</p>
+                <div className="student-recovery-state__note">
+                  <Clock3 size={12} aria-hidden="true" />
+                  {t.recovery.seated}
+                </div>
               </div>
-              <h3>{stageTitle[stage]}</h3>
-              <p>{stageBody[stage]}</p>
-              <p className="student-stage__note">
-                <Clock3 size={12} aria-hidden="true" />
-                {stage === 'reported'
-                  ? t.recovery.seated
-                  : t.recovery.draftNote}
-              </p>
-              <div>
-                <p className="student-field__label">{msgs.next}</p>
-                <ol className="student-next">
+            ) : (
+              <div className="student-recovery-idle">
+                <div className="student-recovery-idle__head">
+                  <span className="student-recovery-idle__icon" aria-hidden="true">
+                    <CircleHelp size={20} />
+                  </span>
+                  <div>
+                    <h3>{stageTitle.idle}</h3>
+                    <p>{stageBody.idle}</p>
+                  </div>
+                </div>
+
+                <p className="student-label">{t.recovery.next}</p>
+                <ol className="student-steps">
                   {t.recovery.nextSteps.map((step, index) => (
                     <li key={step}>
                       <span>{index + 1}</span>
-                      {step}
+                      <p>{step}</p>
                     </li>
                   ))}
                 </ol>
               </div>
-            </div>
-          )}
+            )}
 
-          {stage !== 'idle' ? (
-            <div className="student-report-summary">
-              <div>
-                <p>{t.recovery.reportSummary}</p>
-                <strong>
-                  {displayIssue
-                    ? t.report.issues[displayIssue]
-                    : t.recovery.reportedTitle}
-                </strong>
-                <small>{displayDetails || msgs.detailsFallback}</small>
-                <small>
-                  {msgs.requestId}:{' '}
+            {stage !== 'idle' ? (
+              <div className="student-request">
+                <div className="student-request__copy">
+                  <p>{t.recovery.reportSummary}</p>
+                  <strong>
+                    {displayIssue
+                      ? t.report.issues[displayIssue]
+                      : t.recovery.reportedTitle}
+                  </strong>
+                  {displayDetails ? <small>{displayDetails}</small> : null}
+                </div>
+                <span className="student-request__id">
                   {mode === 'live' ? liveRequest?.id ?? '—' : DEMO_REQUEST_ID}
-                </small>
+                </span>
               </div>
-              <StatusChip
-                status={incidentConfirmed ? 'verified' : 'reported'}
-              />
-            </div>
-          ) : null}
+            ) : null}
 
-          {syncError || sse.status === 'error' ? (
-            <p className="student-alert" role="status">
-              <WifiOff size={14} aria-hidden="true" />
-              {syncError ?? msgs.syncPaused}
-              <button
-                type="button"
-                onClick={() => {
-                  setSyncError(null);
-                  void handleRefreshLive();
-                }}
-              >
-                {msgs.refresh}
-              </button>
-            </p>
-          ) : null}
-        </section>
+            {syncError || sse.status === 'error' ? (
+              <div className="student-sync-alert" role="status">
+                <WifiOff size={14} aria-hidden="true" />
+                <span>{syncError ?? msgs.syncPaused}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSyncError(null);
+                    void handleRefreshLive();
+                  }}
+                >
+                  {t.page.refresh}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </aside>
       </div>
 
       <footer className="student-footer">
