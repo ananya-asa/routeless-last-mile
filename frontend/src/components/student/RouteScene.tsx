@@ -47,37 +47,37 @@ const HILLS: Array<{
   {
     position: [-4.6, -0.55, -4.8],
     scale: [2.5, 1.45, 1.9],
-    color: '#09241F',
+    color: '#12362d',
     rotation: [0.1, 0.4, -0.05],
   },
   {
     position: [-1.8, -0.65, -5.7],
     scale: [3.1, 1.2, 2.1],
-    color: '#0A2A23',
+    color: '#153e33',
     rotation: [0, 0.9, 0.1],
   },
   {
     position: [2.3, -0.6, -5.2],
     scale: [2.2, 1.55, 1.7],
-    color: '#0B2E26',
+    color: '#18473a',
     rotation: [0.2, 0.2, -0.08],
   },
   {
     position: [5.0, -0.7, -3.8],
     scale: [1.8, 1.0, 1.5],
-    color: '#0A2822',
+    color: '#143d33',
     rotation: [0, 1.2, 0.06],
   },
   {
     position: [-5.4, -0.78, -1.8],
     scale: [1.5, 0.72, 1.3],
-    color: '#0D352C',
+    color: '#1a5344',
     rotation: [0.15, 0.5, 0.02],
   },
   {
     position: [5.8, -0.82, -1.2],
     scale: [1.7, 0.58, 1.4],
-    color: '#0E3B31',
+    color: '#1d5b4a',
     rotation: [0, 0.8, -0.04],
   },
 ];
@@ -93,8 +93,8 @@ const SHRUBS: Array<[number, number, number, number]> = [
 ];
 
 function RouteGeometry({ curve }: { curve: THREE.CatmullRomCurve3 }) {
-  const road = useMemo(() => new THREE.TubeGeometry(curve, 140, 0.16, 7, false), [curve]);
-  const glow = useMemo(() => new THREE.TubeGeometry(curve, 140, 0.018, 5, false), [curve]);
+  const road = useMemo(() => new THREE.TubeGeometry(curve, 160, 0.19, 8, false), [curve]);
+  const glow = useMemo(() => new THREE.TubeGeometry(curve, 160, 0.026, 5, false), [curve]);
   const markers = useMemo(
     () =>
       Array.from({ length: 11 }, (_, index) => ({
@@ -143,7 +143,7 @@ function Bus({ curve, reduced }: { curve: THREE.CatmullRomCurve3; reduced: boole
   });
 
   return (
-    <group ref={bus}>
+    <group ref={bus} scale={1.08}>
       <mesh position={[0, 0.33, 0]}>
         <boxGeometry args={[1.02, 0.44, 0.44]} />
         <meshStandardMaterial color="#ECF7EC" roughness={0.36} metalness={0.04} />
@@ -344,19 +344,22 @@ function CameraRig({ reduced, variant }: { reduced: boolean; variant: RouteScene
 
   useEffect(() => {
     const portrait = aspect < 0.72;
-    const z = variant === 'splash' ? (portrait ? 16 : 7.4) : 6.9;
-    const y = variant === 'splash' ? (portrait ? 2.25 : 1.75) : 1.55;
+    const z = variant === 'splash' ? (portrait ? 9 : 6.7) : 6.9;
+    const y = variant === 'splash' ? (portrait ? 1.9 : 1.55) : 1.55;
+    const lookX = variant === 'splash' && !portrait ? -0.55 : 0;
     camera.position.set(0, y, z);
-    camera.lookAt(0, 0.18, 0);
+    camera.lookAt(lookX, 0.16, 0);
   }, [aspect, camera, variant]);
 
   useFrame(({ camera: activeCamera, clock }) => {
     if (reduced) return;
     const elapsed = clock.getElapsedTime();
-    const baseY = variant === 'splash' ? (aspect < 0.72 ? 2.25 : 1.75) : 1.55;
+    const portrait = aspect < 0.72;
+    const baseY = variant === 'splash' ? (portrait ? 1.9 : 1.55) : 1.55;
+    const lookX = variant === 'splash' && !portrait ? -0.55 : 0;
     activeCamera.position.x = Math.sin(elapsed * 0.12) * 0.09;
     activeCamera.position.y = baseY + Math.sin(elapsed * 0.16) * 0.035;
-    activeCamera.lookAt(0, 0.18, 0);
+    activeCamera.lookAt(lookX, 0.16, 0);
   });
 
   return null;
@@ -378,10 +381,11 @@ function World({ reduced, variant }: { reduced: boolean; variant: RouteSceneVari
 
   return (
     <>
-      <fog attach="fog" args={['#071D19', 6.5, 17]} />
-      <ambientLight intensity={0.65} color="#B8F5E1" />
-      <directionalLight position={[4.5, 6, 4]} intensity={2.3} color="#FFE2B5" />
-      <directionalLight position={[-5, 2.5, -2]} intensity={0.85} color="#1DD3B0" />
+      <fog attach="fog" args={['#0a2a23', 7.5, 19]} />
+      <ambientLight intensity={0.9} color="#cdf7e7" />
+      <directionalLight position={[4.5, 6, 4]} intensity={2.9} color="#ffe2b5" />
+      <directionalLight position={[-5, 2.5, -2]} intensity={1.45} color="#2ad9b6" />
+      <directionalLight position={[0, 3, 6]} intensity={0.55} color="#9ff5dc" />
 
       <mesh position={[-2.6, 2.15, -6.4]}>
         <circleGeometry args={[0.7, 32]} />
@@ -394,7 +398,7 @@ function World({ reduced, variant }: { reduced: boolean; variant: RouteSceneVari
 
       <mesh position={[0, -0.76, 0]} rotation-x={-Math.PI / 2}>
         <planeGeometry args={[34, 24]} />
-        <meshStandardMaterial color="#08261F" roughness={1} />
+        <meshStandardMaterial color="#0c3027" roughness={1} />
       </mesh>
 
       {HILLS.map((hill, index) => (
@@ -412,7 +416,7 @@ function World({ reduced, variant }: { reduced: boolean; variant: RouteSceneVari
       {SHRUBS.map(([x, y, z, scale], index) => (
         <mesh key={`shrub-${index}`} position={[x, y, z]} scale={scale}>
           <icosahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial color="#145244" roughness={0.9} flatShading />
+          <meshStandardMaterial color="#1d6250" roughness={0.9} flatShading />
         </mesh>
       ))}
 
