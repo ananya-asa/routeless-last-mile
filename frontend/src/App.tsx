@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BusFront, GraduationCap, Map, ShieldCheck } from 'lucide-react';
+import { BusFront, GraduationCap, Map, ShieldCheck, Sparkles } from 'lucide-react';
 import { StudentHome } from './pages/StudentHome';
 import { CoordinatorDashboard } from './pages/CoordinatorDashboard';
 import { DemoBadge } from './components/DemoBadge';
 import { LiveBusTracking } from './features/live-bus-tracking';
+import { JudgeDemoModal } from './components/JudgeDemoModal';
 
 type Role = 'student' | 'tracking' | 'coordinator';
 
@@ -19,6 +20,7 @@ function roleFromHash(): Role {
 
 export default function App() {
   const [role, setRole] = useState<Role>(roleFromHash);
+  const [judgeDemoOpen, setJudgeDemoOpen] = useState(false);
 
   // Keep the view and the URL hash in sync so a refresh or shared link
   // lands on the same role.
@@ -63,10 +65,20 @@ export default function App() {
             <DemoBadge />
           </div>
 
-          <nav
-            aria-label="Switch demo role"
-            className="inline-flex rounded-xl border border-stone-200 bg-stone-100 p-1"
-          >
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setJudgeDemoOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-teal-800 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-teal-700 transition-colors"
+            >
+              <Sparkles size={13} className="text-teal-200" />
+              <span>Judge Demo</span>
+            </button>
+
+            <nav
+              aria-label="Switch demo role"
+              className="inline-flex rounded-xl border border-stone-200 bg-stone-100 p-1"
+            >
             <button
               type="button"
               onClick={() => switchRole('student')}
@@ -108,7 +120,8 @@ export default function App() {
             </button>
           </nav>
         </div>
-      </header>
+      </div>
+    </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 p-3 sm:p-4 md:p-6">
         {role === 'student' ? (
@@ -123,6 +136,12 @@ export default function App() {
       <footer className="border-t border-stone-200 bg-white py-3 text-center text-[11px] text-stone-500">
         Simulated demo · scenario clock 08:00 · target arrival 09:00 · Aerophilia 2K26
       </footer>
+
+      <JudgeDemoModal
+        isOpen={judgeDemoOpen}
+        onClose={() => setJudgeDemoOpen(false)}
+        onSelectRole={switchRole}
+      />
     </div>
   );
 }
