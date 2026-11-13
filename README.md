@@ -3,13 +3,28 @@
 > **Aerophilia 2K26 · Prompt Battle**  
 > *When the bus fails, the journey shouldn't end.*
 
+<<<<<<< HEAD
 **ROUTELESS** is a mobile-first transport recovery and coordination platform for rural students and educational institutions. When a bus is missing, delayed, overcrowded, or disrupted, students can report the issue and request assistance. School transport coordinators can verify incidents, assess verified alternative transport capacity, review a deterministic recovery plan, and approve feasible assignments without double-booking seats.
+=======
+A mobile-first arrival recovery platform helping students and school transport coordinators respond to missing, delayed, full, or disrupted buses using verified backup transport capacity and transparent seat allocation.
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 
 ROUTELESS focuses on **what happens when a journey fails**—not just how to find a bus.
 
+<<<<<<< HEAD
 > **Project status:** This README documents the architecture, API endpoints, and demonstration scenario supplied by the project team. It does not assert that a particular hosted deployment, live GPS feed, or external school integration has been independently verified. Demonstration scenarios should be clearly identified as simulated.
 
 ## Contents
+=======
+## 🏗️ Architecture
+
+| Layer | Stack |
+|---|---|
+| **Backend** | Node.js · Hono · SQLite (`better-sqlite3`) · Server-Sent Events (SSE) · Docker |
+| **Frontend** | React 18 · Vite · TypeScript · Tailwind CSS · Three.js (3D route scene) |
+| **AI Feature** | Sarvam AI Indic Language API — Kannada natural-language triage |
+| **Deployment** | Frontend → Vercel · Backend → Railway / Docker |
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 
 - [The problem](#the-problem)
 - [What ROUTELESS does](#what-routeless-does)
@@ -24,6 +39,7 @@ ROUTELESS focuses on **what happens when a journey fails**—not just how to fin
 - [Limitations and future work](#limitations-and-future-work)
 - [Submission checklist](#submission-checklist)
 
+<<<<<<< HEAD
 ## The problem
 
 In rural areas, many students rely on a small number of public buses to reach school or college. If a bus breaks down, does not arrive, is full, or cannot use a road, students may have no practical way to coordinate a safe alternative. Institutions may also lack a consolidated view of affected students and spare capacity in verified vehicles.
@@ -129,20 +145,34 @@ This illustrates the expected top-level layout from the provided run commands; i
 
 **Terminal 1 — Backend**
 
+=======
+## 🚀 Quickstart (Local)
+
+### Prerequisites
+- Docker Desktop running
+- Node.js 20+
+
+### 1. Backend (via Docker — recommended)
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 ```bash
-cd backend
-npm install
-npm run dev
+docker compose up --build
+# Backend available at http://localhost:3000
 ```
 
+<<<<<<< HEAD
 **Terminal 2 — Frontend**
 
+=======
+### 2. Frontend
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 ```bash
 cd frontend
 npm install
 npm run dev
+# Frontend available at http://localhost:5173
 ```
 
+<<<<<<< HEAD
 The API examples below use `http://localhost:3000`. The Vite terminal will print the frontend development URL. If your ports are configured differently, use the addresses printed by the running services.
 
 ### Option B — Docker Compose
@@ -151,12 +181,28 @@ From the repository root:
 
 ```bash
 docker compose up --build
+=======
+### 3. Environment Files
+
+**`backend/.env`**
+```env
+PORT=3000
+DB_PATH=./data/routeless.db
+SARVAM_API_KEY=your_sarvam_key_here
+FRONTEND_URL=*
+```
+
+**`frontend/.env`**
+```env
+VITE_API_URL=http://localhost:3000
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 ```
 
 Stop containers with `Ctrl+C` or, if running detached, `docker compose down`.
 
 ### Health check
 
+<<<<<<< HEAD
 ```bash
 curl http://localhost:3000/health
 ```
@@ -171,6 +217,12 @@ The following routes are based on the provided backend contract.
 | --- | --- | --- |
 | `GET` | `/health` | Backend liveness check |
 | `GET` | `/api/villages` | Villages and corridor IDs |
+=======
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/health` | Liveness check |
+| `GET` | `/api/villages` | Villages + corridor IDs |
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 | `GET` | `/api/transport` | Vehicle inventory, routes, blocked corridors |
 | `PATCH` | `/api/transport/:id` | Coordinator correction of seat counts or vehicle status |
 | `GET` | `/api/incidents` | Reported and confirmed disruptions |
@@ -178,6 +230,7 @@ The following routes are based on the provided backend contract.
 | `PATCH` | `/api/incidents/:id` | Confirm or dismiss an incident |
 | `GET` | `/api/requests` | Assistance requests and confirmed assignments |
 | `POST` | `/api/requests` | Create a help request |
+<<<<<<< HEAD
 | `PATCH` | `/api/requests/:id/escalate` | Escalate for institutional assistance |
 | `POST` | `/api/recovery/run` | Generate a deterministic draft plan, without holding seats |
 | `POST` | `/api/recovery/approve` | Atomically validate and confirm proposed assignments |
@@ -197,19 +250,43 @@ The configured showcase uses **12 affected students** in Village C. A verified b
 Expected outcome: **8 proposed assignments, 4 unserved requests**.
 
 #### 1. Confirm the disruption
+=======
+| `PATCH` | `/api/requests/:id/escalate` | Request school assistance |
+| `POST` | `/api/recovery/run` | Deterministic draft plan (seats NOT held) |
+| `POST` | `/api/recovery/approve` | Atomic capacity re-check + confirm assignments |
+| `GET` | `/api/metrics` | Derived dashboard metrics |
+| `GET` | `/api/events` | SSE stream for live coordinator→student push |
+| `GET` | `/api/scenarios` | Demo scenario presets |
+| `POST` | `/api/scenarios/reset/:id` | Reset demo state to a scenario |
+| `POST` | `/api/triage/sarvam` | Kannada text → structured incident (Sarvam AI) |
 
+---
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
+
+## 🎬 Demo Flow
+
+### Default Scenario (Village C / Bus B2 Breakdown)
 ```bash
+<<<<<<< HEAD
+=======
+# 1. Confirm the reported breakdown
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 curl -X PATCH http://localhost:3000/api/incidents/INC-B2-BREAKDOWN \
   -H "Content-Type: application/json" \
   -d '{"status":"confirmed"}'
 ```
 
+<<<<<<< HEAD
 #### 2. Run the recovery analysis
 
 ```bash
+=======
+# 2. Run recovery engine — 12 affected, 8 proposed on Van V1, 4 unserved
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 curl -X POST http://localhost:3000/api/recovery/run
 ```
 
+<<<<<<< HEAD
 This generates a **draft plan only**. It does not consume vehicle capacity.
 
 #### 3. Approve the proposed assignments
@@ -227,11 +304,15 @@ Save a `plan.json` file containing the intended proposals in the API's request f
 The snippet shows **one illustrative proposal**, not the complete eight-assignment plan. For the full scenario, include all eight eligible proposals returned by the recovery analysis.
 
 ```bash
+=======
+# 3. Approve the plan (all-or-nothing atomic transaction)
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 curl -X POST http://localhost:3000/api/recovery/approve \
   -H "Content-Type: application/json" \
   -d @plan.json
 ```
 
+<<<<<<< HEAD
 Approval performs an atomic re-check of capacity, eligibility, incident status, and duplicate assignments. If any proposed assignment conflicts, the **entire submitted plan is rejected** rather than partially committed.
 
 #### 4. Inspect metrics
@@ -287,13 +368,40 @@ npm test
 ### Node.js 24 / native dependency note
 
 `better-sqlite3` may require native build tools on some Node.js 24 environments. For **database-free unit tests only**, the supplied project instructions allow:
+=======
+# 4. Check metrics — Van V1 usage goes to 8/8
+curl http://localhost:3000/api/metrics
+```
+
+### Exam Day Crisis Scenario
+```bash
+curl -X POST http://localhost:3000/api/scenarios/reset/SCN-EXAM-CRISIS
+# Loads: 17 students · dual B1+B2 breakdown · Southern corridor flooded
+# Engine: 10 exam students → all 8 Van V1 seats · 9 unserved (honest)
+```
+
+### Kannada Triage (Sarvam AI)
+```bash
+curl -X POST http://localhost:3000/api/triage/sarvam \
+  -H "Content-Type: application/json" \
+  -d '{"text":"ನಾಳೆ 9 ಗಂಟೆಗೆ ಎಕ್ಸಾಮ್ ಇದೆ, ಬಸ್ ಬಂದಿಲ್ಲ"}'
+# → { isExamDay: true, urgency: "critical", incidentType: "no_show" }
+```
+
+> **Safety guarantee:** Draft proposals never consume seats. Approval re-checks capacity, incident status, eligibility, and duplicate assignments inside a single SQLite transaction. One conflict rejects the entire plan.
+
+---
+
+## 🧪 Tests
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f
 
 ```bash
 cd backend
-npm install --ignore-scripts
-npm test
+npm run test
+# ✓ 13 tests passing (Vitest)
 ```
 
+<<<<<<< HEAD
 Using `--ignore-scripts` is **not** a complete backend installation if SQLite's native module still needs to be built. For a running backend, use a supported Node version and install/build the native dependency normally.
 
 ### Frontend build
@@ -330,3 +438,46 @@ Run tests and builds locally and record the actual outputs before submission. No
 
 **ROUTELESS · Aerophilia 2K26 Prompt Battle**  
 *When the bus fails, the journey shouldn't end.*
+=======
+---
+
+## 📁 Project Structure
+
+```
+routeless-last-mile/
+├── backend/
+│   ├── src/
+│   │   ├── db/            # schema.sql, seed.ts, client.ts
+│   │   ├── domain/        # recoveryEngine.ts, eligibility.ts, metrics.ts
+│   │   ├── routes/        # incidents, requests, recovery, events, triage, ...
+│   │   └── tests/         # engine.test.ts (Vitest)
+│   ├── Dockerfile
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── api/           # client.ts (all backend API calls + field mapping)
+│   │   ├── components/    # DemoBadge, AssignmentCard, EmptyState, student/*
+│   │   ├── pages/         # StudentHome.tsx, CoordinatorDashboard.tsx
+│   │   ├── hooks/         # useSSE.ts
+│   │   └── data/          # types.ts
+│   └── package.json
+├── docker-compose.yml
+└── prompts.md             # Prompt Battle trajectory log
+```
+
+---
+
+## 🔒 Safety Principles
+
+- **Verified vehicles only** — no unvetted driver matching, no open carpooling
+- **Honest unserved state** — never fake 100% success; show real seat math
+- **Demo labeled** — `DemoBadge` present on all student-facing screens
+- **Config-driven relay routes** — read from `relay_routes` DB table, never hardcoded strings
+- **All-or-nothing approval** — one seat conflict rejects the entire plan
+
+---
+
+## 👥 Team — Aerophilia 2K26
+
+Built at **Aerophilia 2K26 Prompt Battle** using Google Antigravity (Gemini) + Claude via Antigravity.
+>>>>>>> 6c60b77df5698475ec4067769b5fe8236b660d5f

@@ -209,38 +209,107 @@ Implement the Exam Day Crisis solution:
 
 ---
 
-### Step 8: Final Prompt — Production Build Verification & Submission Checklist
+### Step 8: Multi-Branch Merge & Full Integration
 
-#### Final Prompt 8.1
+#### Prompt 8.1
+```text
+now one sharon branch has to merge bro — fix any conflicts and get everything building clean
+```
+
+#### Action Taken
+Fetched `origin/sharon` (coordinator dashboard branch). Resolved `.gitignore` merge conflict (kept union of both versions). Sharon's branch brought in:
+- `backend/src/tests/builders.ts` — test fixture factories
+- `backend/src/domain/metrics.ts` — `computeMetrics()` derived from DB
+- `backend/src/routes/recoveryData.ts` — `loadEngineInput()` helper
+- Extended `recovery.ts`, `incidents.ts`, `scenarios.ts`, `transport.ts`
+- `frontend/vercel.json` — Vercel SPA routing config
+- `backend/.env.example` — environment template
+- `backend/render.yaml` — Render deploy config
+
+---
+
+### Step 9: Full API Audit & Frontend–Backend Sync Fix
+
+#### Prompt 9.1
+```text
+can you go through each module — is that syncing with the backend? I want each module to work properly without anything breaking.
+```
+
+#### Issues Found & Fixed
+Backend routes returned camelCase field names; frontend TypeScript types expected snake_case. All mapping now done in `frontend/src/api/client.ts`:
+
+| Route | Backend Returns | Frontend Type Needed | Fix |
+|---|---|---|---|
+| `GET /api/villages` | `corridorId` | `corridor_id` | Mapped in `fetchVillages()` |
+| `GET /api/transport` | `occupiedSeats`, `departureMin`, `arrivalMinByVillage`, kind `'school_van'` | `occupied_seats`, `departure_min`, `arrival_min`, `'institution_vehicle'` | Mapped in `fetchTransport()` |
+| `GET /api/incidents` | `transportOptionId`, `reportedBy` | `transport_option_id`, `reported_by` | Mapped in `fetchIncidents()` |
+| `GET /api/requests` | `studentId`, `incidentId` | `student_id`, `incident_id` | Mapped in `fetchHelpRequests()` |
+| `GET /api/metrics` | `affected` | `affectedRequests` | Mapped in `fetchDashboardMetrics()` |
+
+`CoordinatorDashboard.tsx` was a 13-line stub — rebuilt as a full live dashboard with incident confirm/dismiss, recovery engine trigger, plan approval, SSE connection, and metrics.
+
+---
+
+### Step 10: Adversarial Audit — Relay Route Consistency & Child Safety Guardrails
+
+#### Prompt 10.1 (Adversarial Engineering Review & Refinement)
+```text
+Adversarial Safety & Consistency Audit:
+1. Scenario Contradiction: In SCN-EXAM-CRISIS, both Bus B1 and B2 are marked broken down. However, the relay route engine proposed: "Walk 1.8km to Village B and board Bus B1". The engine must NOT recommend a vehicle that the active scenario or incident registry has already flagged as cancelled or disrupted.
+2. Child Protection & Flood Safety: Proposing an unescorted 1.8km walking route for rural student commuters during an active corridor flood is unsafe. The relay recommendation must explicitly mandate coordinator/guardian confirmation rather than issuing an unqualified direct instruction.
+3. Task:
+   - Update relayAlternativeFor in recoveryEngine.ts to verify that connecting transport is not in disruptedVehicleIds and connectingStatus === 'active'.
+   - If connecting transport is disrupted, return an honest notice: "Connecting vehicle is currently disrupted or cancelled; bypass relay suspended."
+   - When active, format with safety disclaimer: "[Coordinator Confirmation Required] Requires guardian or coordinator confirmation for flood-area transit."
+   - Add automated test verifying relay suspension when connecting vehicle is cancelled.
+```
+
+#### Code Adaptation & Verified Terminal Outputs
+1. **Engine Logic Refined (`recoveryEngine.ts`):**
+   `relayAlternativeFor` now receives `disruptedVehicleIds`. It checks whether connecting transport is cancelled, delayed, or subject to active confirmed incidents. If unavailable, it honestly suspends the bypass instead of misleading students.
+2. **Safety Tagging Added:**
+   Routes require coordinator authorization before students depart.
+3. **Vitest Test Suite Expanded:**
+   Added test case verifying relay suspension when connecting vehicle is cancelled (`13/13 passing`).
+
+---
+
+### Step 11: Final Production Build Verification & Submission Checklist
+
+#### Final Prompt 11.1
 ```text
 Final Submission Preparation:
 1. Validate that backend and frontend compile with zero TypeScript errors.
-2. Run automated Vitest test suite to ensure all allocation invariants pass.
+2. Run automated Vitest test suite to ensure all allocation invariants pass (including flood relay guardrails).
 3. Verify Docker container build (docker compose build) succeeds cleanly.
-4. Confirm repository hygiene: public visibility, clean git history, no committed node_modules or credentials.
+4. Confirm live cloud deployment: Backend on Render with live seed data, Frontend with live API integration.
 ```
 
 #### Concrete Build & Verification Results
-- **Frontend Production Build:** Passed cleanly.
+- **Frontend Production Build:** Passed — zero TypeScript errors, zero warnings.
   ```text
-  ✓ 34 modules transformed.
-  dist/index.html                   0.49 kB │ gzip:  0.34 kB
-  dist/assets/index-BT0nQmES.css   11.49 kB │ gzip:  2.87 kB
-  dist/assets/index-B15RFItN.js   145.02 kB │ gzip: 46.60 kB
-  ✓ built in 1.45s
+  ✓ 1618 modules transformed.
+  dist/index.html                     0.49 kB │ gzip:  0.34 kB
+  dist/assets/index-Cw5UQFfL.css     58.32 kB │ gzip: 11.20 kB
+  dist/assets/index-BwahBK8C.js   1,080.18 kB │ gzip: 299.59 kB
+  ✓ built in 5.42s
   ```
-- **Backend Unit Tests (Vitest):** All 7 core invariant tests passed.
+- **Backend Unit Tests (Vitest):** All 13 tests passing.
   ```text
-  ✓ src/tests/engine.test.ts (7 tests) 10ms
+  ✓ src/tests/engine.test.ts (13 tests) 19ms
   Test Files  1 passed (1)
-  Tests       7 passed (7)
+       Tests  13 passed (13)
   ```
 - **Docker Container Build:** Image `routeless-last-mile-backend` successfully built with compiled C++ bindings.
 - **Public Repository:** https://github.com/ananya-asa/routeless-last-mile
-- **Deployment Status:** Pre-built production bundle in `dist/` ready for public Vercel hosting; Docker container ready for Railway / VPS hosting.
+- **Live Deployed Backend:** https://routeless-last-mile-8ex8.onrender.com (Docker Web Service, SQLite seed active)
+- **Deployment Target:** Frontend → Static Site (Render / Vercel, `frontend/` root) · Backend → Render Docker Web Service
 
 ---
 
 ### Retrospective: What We Learned & Would Do Differently
+- **Scenario State Cross-Checking:** When introducing relay alternatives, static junction routes must always be dynamically evaluated against real-time incident states to ensure connecting legs haven't failed simultaneously.
+- **Child Protection by Design:** Rural student routing cannot be treated as pure graph pathfinding; physical safety, weather hazards, and adult supervision checks must gate every walking recommendation.
 - **Schema Completeness:** While we defined `isExamDay` in our frontend TypeScript interfaces early, we omitted the physical column in the initial SQLite `schema.sql` file, requiring an `ALTER TABLE` step when the hurdle arrived. In future projects, we would cross-validate the SQL DDL directly against the TypeScript types before running migrations.
+- **API Contract:** Backend and frontend were written in parallel by different team members with different naming conventions (camelCase vs. snake_case). A shared `api-contract.ts` or OpenAPI spec written upfront would eliminate all mapping shims in `client.ts`.
 - **Offline Reliability:** Given additional time, we would implement an SMS/USSD fallback driver manifest for areas with complete cellular blackout.

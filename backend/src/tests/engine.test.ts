@@ -8,6 +8,7 @@ import {
   type EngineInput,
 } from '../domain/recoveryEngine.js';
 import {
+  busB1,
   busB2,
   makeIncident,
   makeRequest,
@@ -288,6 +289,49 @@ describe('ROUTELESS recovery engine', () => {
     expect(plan.unserved).toHaveLength(1);
     expect(plan.unserved[0].reason).toBe('route_blocked');
     expect(plan.unserved[0].relayAlternative).toContain('Village B');
+    expect(plan.unserved[0].relayAlternative).toContain('Coordinator Confirmation Required');
+  });
+
+  it('suspends relay bypass when the connecting vehicle is also cancelled or disrupted', () => {
+    const student = makeStudent('STU-F2', VILLAGE_C.id);
+    const incidentB2 = makeIncident('INC-B2', 'BUS-B2', {
+      status: 'confirmed',
+      affectedVillageIds: [VILLAGE_C.id],
+    });
+    const incidentB1 = makeIncident('INC-B1', 'BUS-B1', {
+      status: 'confirmed',
+      affectedVillageIds: [VILLAGE_B.id],
+    });
+
+    const plan = planRecovery({
+      villages: [VILLAGE_B, VILLAGE_C],
+      students: [student],
+      vehicles: [
+        busB1({ status: 'cancelled' }),
+        busB2({ status: 'cancelled' }),
+        vanV1({ blockedCorridorIds: ['CRD-SOUTH'] }),
+      ],
+      incidents: [incidentB2, incidentB1],
+      requests: [makeRequest('REQ-F2', student.id, incidentB2.id, { isExamDay: true })],
+      assignments: [],
+      relayRoutes: [
+        {
+          id: 'RLY-C-B',
+          sourceVillageId: VILLAGE_C.id,
+          junctionVillageId: VILLAGE_B.id,
+          junctionName: VILLAGE_B.name,
+          connectingTransportId: 'BUS-B1',
+          connectingLabel: 'Bus B1 — Village A & B Express',
+          connectingVerified: true,
+          connectingStatus: 'cancelled',
+          walkDistanceKm: 1.8,
+          corridorId: 'CRD-SOUTH',
+        },
+      ],
+    });
+
+    expect(plan.unserved[0].reason).toBe('route_blocked');
+    expect(plan.unserved[0].relayAlternative).toContain('disrupted or cancelled');
   });
 });
 

@@ -344,11 +344,13 @@ function explainUnserved(entry: QueueEntry, reason: UnservedReason): string {
 
 /**
  * Looks up the configured dry-path relay for a blocked corridor.
- * Only verified connecting vehicles are offered as a safe alternative.
+ * Only verified, non-disrupted connecting vehicles are offered as a safe alternative.
+ * For flood scenarios, walks require explicit coordinator confirmation.
  */
 function relayAlternativeFor(
   entry: QueueEntry,
   relayRoutes: readonly EngineRelayRoute[],
+  disruptedVehicleIds: ReadonlySet<string>,
 ): string {
   const matched = relayRoutes.find(
     (route) =>
@@ -356,19 +358,23 @@ function relayAlternativeFor(
       route.corridorId === entry.village.corridorId,
   );
 
+  if (!matched || !matched.connectingVerified) {
+    return 'No verified bypass configured for this corridor.';
+  }
+
   if (
-    !matched ||
-    !matched.connectingVerified ||
-    matched.connectingStatus === 'cancelled'
+    matched.connectingStatus === 'cancelled' ||
+    matched.connectingStatus === 'delayed' ||
+    disruptedVehicleIds.has(matched.connectingTransportId)
   ) {
-    return 'No safe dry bypass configured for this village corridor.';
+    return `Connecting vehicle (${matched.connectingLabel}) is currently disrupted or cancelled; bypass relay suspended.`;
   }
 
   const walk = Number.isInteger(matched.walkDistanceKm)
     ? String(matched.walkDistanceKm)
     : matched.walkDistanceKm.toFixed(1);
 
-  return `Config-driven relay: walk ${walk}km on the dry path to ${matched.junctionName} -> board verified ${matched.connectingLabel}.`;
+  return `Config-driven relay [Coordinator Confirmation Required]: Walk ${walk}km on designated dry path to ${matched.junctionName} -> board verified ${matched.connectingLabel}. Route requires guardian or coordinator confirmation for student safety.`;
 }
 
 /**
@@ -440,7 +446,7 @@ export function planRecovery(input: EngineInput): RecoveryResult {
       reason,
       explanation: explainUnserved(entry, reason),
       ...(reason === 'route_blocked'
-        ? { relayAlternative: relayAlternativeFor(entry, input.relayRoutes ?? []) }
+        ? { relayAlternative: relayAlternativeFor(entry, input.relayRoutes ?? [], disrupted) }
         : {}),
     });
   }
