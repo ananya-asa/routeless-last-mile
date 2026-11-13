@@ -1,5 +1,10 @@
-// events.ts — SSE (Server-Sent Events) endpoint for real-time broadcasts
+// ============================================================
+// events.ts — SSE endpoint for real-time coordinator updates.
+// Every message must be framed as `data: ...\n\n` for EventSource.
+// ============================================================
+
 import { Hono } from 'hono';
+import { DEMO_NOW_MIN } from './recoveryData.js';
 
 export const eventRoutes = new Hono();
 
@@ -9,8 +14,9 @@ type Client = {
 };
 
 const clients = new Set<Client>();
+const encoder = new TextEncoder();
 
-export function broadcast(payload: any) {
+export function broadcast(payload: unknown) {
   const message = `data: ${JSON.stringify(payload)}\n\n`;
   for (const client of clients) {
     try {
@@ -22,39 +28,61 @@ export function broadcast(payload: any) {
 }
 
 eventRoutes.get('/', (c) => {
-  return new Response(
-    new ReadableStream({
-      start(controller) {
-        const client: Client = {
-          id: Math.random().toString(36).substring(7),
-          write: (data: string) => {
-            controller.enqueue(new TextEncoder().encode(data));
-          },
-        };
+  let pingInterval: ReturnType<typeof setInterval> | undefined;
+  let client: Client | undefined;
 
-        clients.add(client);
-
-        // Keep-alive ping
-        const pingInterval = setInterval(() => {
-          controller.enqueue(new TextEncoder().encode(': ping\n\n'));
-        }, 15000);
-
-        // Send initial connect payload
-        client.write(JSON.stringify({ type: 'connected' }));
-
-        c.req.raw.signal.addEventListener('abort', () => {
-          clearInterval(pingInterval);
-          clients.delete(client);
-        });
-      },
-    }),
-    {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
+  const cleanup = () => {
+    if (pingInterval) {
+      clearInterval(pingInterval);
+      pingInterval = undefined;
     }
-  );
-});
+    if (client) {
+      clients.delete(client);
+      client = undefined;
+    }
+  };
 
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const write = (data: string) => {
+        try {
+          controller.enqueue(encoder.encode(data));
+        } catch {
+          cleanup();
+        }
+      };
+
+      client = {
+        id: Math.random().toString(36).slice(2),
+        write,
+      };
+      clients.add(client);
+
+      // Ask EventSource to reconnect after 3s if the connection drops.
+      write('retry: 3000\n\n');
+      write(
+        `data: ${JSON.stringify({ type: 'connected', atMin: DEMO_NOW_MIN })}\n\n`,
+      );
+
+      // Keep-alive comment every 15s so proxies do not close the stream.
+      pingInterval = setInterval(() => write(': ping\n\n'), 15_000);
+
+      const signal = c.req.raw.signal;
+      if (signal) {
+        signal.addEventListener('abort', cleanup, { once: true });
+      }
+    },
+    cancel() {
+      cleanup();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  });
+});
