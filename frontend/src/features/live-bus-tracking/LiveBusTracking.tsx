@@ -23,6 +23,7 @@ import {
   analyzeRouteProgress,
   buildRouteMetrics,
   formatDistance,
+  haversineM,
   isValidLocation,
   toLatLngPairs,
   type RouteMetrics,
@@ -206,6 +207,9 @@ export function LiveBusTracking({
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapBundleRef = useRef<MapBundle | null>(null);
   const followRef = useRef(followBus);
+  const busAnimationRef = useRef<number | null>(null);
+  const displayedPositionRef = useRef<[number, number] | null>(null);
+  const lastFixTimeRef = useRef<number | null>(null);
 
   followRef.current = followBus;
 
@@ -254,6 +258,8 @@ export function LiveBusTracking({
     setRouteStatus('loading');
     setRouteError(null);
     setMapStatus('idle');
+    displayedPositionRef.current = null;
+    lastFixTimeRef.current = null;
 
     const fail = (error: unknown) => {
       if (!active) return;
@@ -411,6 +417,10 @@ export function LiveBusTracking({
     return () => {
       active = false;
       resizeObserver?.disconnect();
+      if (busAnimationRef.current !== null) {
+        window.cancelAnimationFrame(busAnimationRef.current);
+        busAnimationRef.current = null;
+      }
       mapBundleRef.current?.map.remove();
       mapBundleRef.current = null;
     };

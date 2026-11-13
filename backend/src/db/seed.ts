@@ -5,89 +5,220 @@
 // ============================================================
 
 import { db } from './client.js';
-import { v4 as uuid } from 'uuid';
 
-// Helper: minutes from midnight
 const toMin = (h: number, m: number) => h * 60 + m;
 
+export const DEMO_CLASS_START_MIN = toMin(9, 0);
+
+export const DEMO_VILLAGES = [
+  { id: 'VLG-A', name: 'Village A', corridor_id: 'CRD-NORTH' },
+  { id: 'VLG-B', name: 'Village B', corridor_id: 'CRD-NORTH' },
+  { id: 'VLG-C', name: 'Village C', corridor_id: 'CRD-SOUTH' },
+] as const;
+
+interface BaselineTransport {
+  id: string;
+  label: string;
+  kind: 'government_bus' | 'institution_vehicle';
+  status: 'active' | 'delayed' | 'cancelled';
+  verified: number;
+  capacity: number;
+  occupied: number;
+  dep: number;
+  arr: number;
+  accessible: number;
+  driver: string;
+  contact: string;
+  villages: string[];
+}
+
+/** The canonical fixture state every scenario resets to before applying its twist. */
+export const BASELINE_TRANSPORTS: BaselineTransport[] = [
+  {
+    id: 'BUS-B1',
+    label: 'Bus B1 — Village A & B Express',
+    kind: 'government_bus',
+    status: 'active',
+    verified: 1,
+    capacity: 40,
+    occupied: 15,
+    dep: toMin(7, 0),
+    arr: toMin(8, 45),
+    accessible: 0,
+    driver: 'Ramesh Kumar',
+    contact: '98100-11111',
+    villages: ['VLG-A', 'VLG-B'],
+  },
+  {
+    id: 'BUS-B2',
+    label: 'Bus B2 — Village C Direct',
+    kind: 'government_bus',
+    status: 'active',
+    verified: 1,
+    capacity: 40,
+    occupied: 0,
+    dep: toMin(7, 30),
+    arr: toMin(8, 50),
+    accessible: 0,
+    driver: 'Sunil Singh',
+    contact: '98100-22222',
+    villages: ['VLG-C'],
+  },
+  {
+    id: 'VAN-V1',
+    label: 'Van V1 — School Backup (Village C)',
+    kind: 'institution_vehicle',
+    status: 'active',
+    verified: 1,
+    capacity: 10,
+    occupied: 2,
+    dep: toMin(7, 45),
+    arr: toMin(8, 55),
+    accessible: 1,
+    driver: 'Arvind Mehra',
+    contact: '98100-33333',
+    villages: ['VLG-C'],
+  },
+];
+
+/** 12 pseudonymous Village C students. No personal data. */
+export const DEMO_STUDENTS = Array.from({ length: 12 }, (_, index) => {
+  const n = index + 1;
+  return {
+    id: `STU-${String(n).padStart(3, '0')}`,
+    village_id: 'VLG-C',
+    institution_id: 'demo-district',
+    class_start_min: DEMO_CLASS_START_MIN,
+    // A deterministic mix exercises exam priority and accessibility rules.
+    is_exam_day: n === 2 || n === 7 ? 1 : 0,
+    previous_unserved_days: n === 3 ? 2 : 0,
+    needs_accessible_vehicle: n === 4 || n === 11 ? 1 : 0,
+  };
+});
+
+export const DEMO_SCENARIOS = [
+  {
+    id: 'SCN-BREAKDOWN',
+    name: 'Bus Breakdown',
+    description: 'Bus B2 is reported broken down. Van V1 has 8 verified seats for 12 Village C students.',
+  },
+  {
+    id: 'SCN-OVERCROWDING',
+    name: 'Overcrowding',
+    description: 'Bus B1 is full. Villages A and B have no spare capacity; the board must stay honest.',
+  },
+  {
+    id: 'SCN-ROADBLOCK',
+    name: 'Road Blocked',
+    description: 'The southern corridor is blocked. No verified vehicle can reach Village C.',
+  },
+  {
+    id: 'SCN-NOBACKUP',
+    name: 'Zero Backup',
+    description: 'Bus B2 breaks down and Van V1 is unavailable. 12 affected, 0 seats, honest escalation.',
+  },
+] as const;
+
+function insertVillages() {
+  const insertVillage = db.prepare(
+    'INSERT OR IGNORE INTO villages (id, name, corridor_id) VALUES (?, ?, ?)',
+  );
+  for (const village of DEMO_VILLAGES) {
+    insertVillage.run(village.id, village.name, village.corridor_id);
+  }
+}
+
+function insertStudents() {
+  const insertStudent = db.prepare(`
+    INSERT OR IGNORE INTO students
+      (id, village_id, institution_id, class_start_min, is_exam_day,
+       previous_unserved_days, needs_accessible_vehicle)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const student of DEMO_STUDENTS) {
+    insertStudent.run(
+      student.id,
+      student.village_id,
+      student.institution_id,
+      student.class_start_min,
+      student.is_exam_day,
+      student.previous_unserved_days,
+      student.needs_accessible_vehicle,
+    );
+  }
+}
+
+function insertScenarios() {
+  const insertScenario = db.prepare(
+    'INSERT OR IGNORE INTO scenarios (id, name, description) VALUES (?, ?, ?)',
+  );
+  for (const scenario of DEMO_SCENARIOS) {
+    insertScenario.run(scenario.id, scenario.name, scenario.description);
+  }
+}
+
+function insertBaselineTransports() {
+  const insertTransport = db.prepare(`
+    INSERT OR IGNORE INTO transport_options
+      (id, label, kind, status, verified, capacity, occupied_seats,
+       departure_min, arrival_min, accessible, driver_name, contact)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertTransportVillage = db.prepare(
+    'INSERT OR IGNORE INTO transport_villages (transport_id, village_id) VALUES (?, ?)',
+  );
+
+  for (const transport of BASELINE_TRANSPORTS) {
+    insertTransport.run(
+      transport.id,
+      transport.label,
+      transport.kind,
+      transport.status,
+      transport.verified,
+      transport.capacity,
+      transport.occupied,
+      transport.dep,
+      transport.arr,
+      transport.accessible,
+      transport.driver,
+      transport.contact,
+    );
+    for (const villageId of transport.villages) {
+      insertTransportVillage.run(transport.id, villageId);
+    }
+  }
+}
+
+/**
+ * Ensure lookup/static data is present, even if an older database already had
+ * villages but not the newer students or scenario rows.
+ */
+export function seedStaticData() {
+  insertVillages();
+  insertStudents();
+  insertBaselineTransports();
+  insertScenarios();
+}
+
 export function seedIfEmpty() {
-  const count = (db.prepare('SELECT COUNT(*) as c FROM villages').get() as { c: number }).c;
-  if (count > 0) {
-    console.log('[Seed] Data already exists — skipping seed.');
+  const villageCount = (
+    db.prepare('SELECT COUNT(*) as c FROM villages').get() as { c: number }
+  ).c;
+
+  if (villageCount > 0) {
+    // Idempotent repair for databases created by an earlier scaffold.
+    seedStaticData();
+    console.log('[Seed] Data already exists — static fixtures checked.');
     return;
   }
 
   console.log('[Seed] Seeding demo data...');
 
   const run = db.transaction(() => {
-
-    // ── Villages ─────────────────────────────────────────────
-    const villages = [
-      { id: 'VLG-A', name: 'Village A', corridor_id: 'CRD-NORTH' },
-      { id: 'VLG-B', name: 'Village B', corridor_id: 'CRD-NORTH' },
-      { id: 'VLG-C', name: 'Village C', corridor_id: 'CRD-SOUTH' },
-    ];
-    const insertVillage = db.prepare(
-      'INSERT INTO villages (id, name, corridor_id) VALUES (?, ?, ?)'
-    );
-    for (const v of villages) insertVillage.run(v.id, v.name, v.corridor_id);
-
-    // ── Transport Options ─────────────────────────────────────
-    const insertTransport = db.prepare(`
-      INSERT INTO transport_options
-        (id, label, kind, status, verified, capacity, occupied_seats,
-         departure_min, arrival_min, accessible, driver_name, contact)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const transports = [
-      {
-        id: 'BUS-B1', label: 'Bus B1 — Village A & B Express',
-        kind: 'government_bus', status: 'active', verified: 1,
-        capacity: 40, occupied: 15,
-        dep: toMin(7, 0), arr: toMin(8, 45),
-        accessible: 0, driver: 'Ramesh Kumar', contact: '98100-11111',
-        villages: ['VLG-A', 'VLG-B'], blocked: [],
-      },
-      {
-        id: 'BUS-B2', label: 'Bus B2 — Village C Direct',
-        kind: 'government_bus', status: 'active', verified: 1,
-        capacity: 40, occupied: 0,
-        dep: toMin(7, 30), arr: toMin(8, 50),
-        accessible: 0, driver: 'Sunil Singh', contact: '98100-22222',
-        villages: ['VLG-C'], blocked: [],
-      },
-      {
-        id: 'VAN-V1', label: 'Van V1 — School Backup (Village C)',
-        kind: 'institution_vehicle', status: 'active', verified: 1,
-        capacity: 10, occupied: 2,
-        dep: toMin(7, 45), arr: toMin(8, 55),
-        accessible: 1, driver: 'Arvind Mehra', contact: '98100-33333',
-        villages: ['VLG-C'], blocked: [],
-      },
-    ];
-
-    const insertTV = db.prepare(
-      'INSERT INTO transport_villages (transport_id, village_id) VALUES (?, ?)'
-    );
-
-    for (const t of transports) {
-      insertTransport.run(
-        t.id, t.label, t.kind, t.status, t.verified,
-        t.capacity, t.occupied, t.dep, t.arr,
-        t.accessible, t.driver, t.contact
-      );
-      for (const vid of t.villages) insertTV.run(t.id, vid);
-    }
-
-    // ── Scenarios ─────────────────────────────────────────────
-    const insertScenario = db.prepare(
-      'INSERT INTO scenarios (id, name, description) VALUES (?, ?, ?)'
-    );
-    insertScenario.run('SCN-BREAKDOWN',    'Bus Breakdown',   'Bus B2 breaks down; Van V1 available with 8 seats');
-    insertScenario.run('SCN-OVERCROWDING', 'Overcrowding',    'Bus B1 is full; students from Villages A & B need help');
-    insertScenario.run('SCN-ROADBLOCK',    'Road Blocked',    'Southern corridor blocked; no vehicle can reach Village C');
-    insertScenario.run('SCN-NOBACKUP',     'Zero Backup',     'Bus B2 breaks down; no verified backup available');
+    insertVillages();
+    insertBaselineTransports();
+    insertScenarios();
+    insertStudents();
 
     // ── Demo incident (B2 breakdown — initially reported/unverified) ──
     const incidentId = 'INC-B2-BREAKDOWN';
@@ -95,11 +226,15 @@ export function seedIfEmpty() {
       INSERT INTO incidents (id, transport_option_id, type, status, reported_by, details)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(
-      incidentId, 'BUS-B2', 'breakdown', 'reported', 'student',
-      'Bus B2 has not arrived at the stop. Demo scenario.'
+      incidentId,
+      'BUS-B2',
+      'breakdown',
+      'reported',
+      'student',
+      'Bus B2 has not arrived at the stop. Demo scenario.',
     );
     db.prepare(
-      'INSERT INTO incident_villages (incident_id, village_id) VALUES (?, ?)'
+      'INSERT INTO incident_villages (incident_id, village_id) VALUES (?, ?)',
     ).run(incidentId, 'VLG-C');
 
     // ── 12 pseudonymous help requests (Village C students) ───
@@ -108,23 +243,13 @@ export function seedIfEmpty() {
       VALUES (?, ?, ?, 'pending')
     `);
     for (let i = 1; i <= 12; i++) {
-      const sid = `STU-${String(i).padStart(3, '0')}`;
-      const rid = `REQ-${String(i).padStart(3, '0')}`;
-      insertRequest.run(rid, sid, incidentId);
+      const studentId = `STU-${String(i).padStart(3, '0')}`;
+      const requestId = `REQ-${String(i).padStart(3, '0')}`;
+      insertRequest.run(requestId, studentId, incidentId);
     }
-
-    // ── A few other demo students for context (Villages A & B) ──
-    const otherStudents = [
-      { sid: 'STU-013', rid: 'REQ-013' },
-      { sid: 'STU-014', rid: 'REQ-014' },
-      { sid: 'STU-015', rid: 'REQ-015' },
-    ];
-    // These don't have an active incident — just for dashboard context
-
   });
 
   run();
   console.log('[Seed] Demo data seeded successfully.');
   console.log('[Seed] Scenario: B2 breakdown reported; 12 Village C requests pending.');
 }
-

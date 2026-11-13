@@ -9,6 +9,18 @@ CREATE TABLE IF NOT EXISTS villages (
   corridor_id TEXT NOT NULL
 );
 
+-- Pseudonymous students. No names, phones, or precise locations.
+CREATE TABLE IF NOT EXISTS students (
+  id                      TEXT PRIMARY KEY,
+  village_id              TEXT NOT NULL,
+  institution_id          TEXT NOT NULL DEFAULT 'demo-district',
+  class_start_min         INTEGER NOT NULL DEFAULT 540,
+  is_exam_day             INTEGER NOT NULL DEFAULT 0,
+  previous_unserved_days  INTEGER NOT NULL DEFAULT 0,
+  needs_accessible_vehicle INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (village_id) REFERENCES villages(id)
+);
+
 CREATE TABLE IF NOT EXISTS transport_options (
   id             TEXT PRIMARY KEY,
   label          TEXT NOT NULL,
@@ -85,4 +97,10 @@ CREATE TABLE IF NOT EXISTS scenarios (
   name        TEXT NOT NULL,
   description TEXT
 );
+
+-- Hot paths for the coordinator board and recovery planner.
+CREATE INDEX IF NOT EXISTS idx_requests_incident   ON help_requests(incident_id);
+CREATE INDEX IF NOT EXISTS idx_requests_student    ON help_requests(student_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_status  ON assignments(status);
+CREATE INDEX IF NOT EXISTS idx_incidents_status    ON incidents(status);
 
