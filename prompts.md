@@ -1,87 +1,106 @@
-# ROUTELESS — Prompt Battle Prompt Log
-## Aerophilia 2K26 | Team Prompt Iterations
+# ROUTELESS — Prompt Battle Iteration & Decision Log
+## Aerophilia 2K26 | Team Prompt Engineering Trajectory
+
+> **Judging Context:** Real-world systems aren't built in a single unedited prompt. This document captures our true conversational iteration loops: problem exploration, architectural course corrections, technical debugging, and constraint defense under a 3-hour timer.
 
 ---
 
-### Prompt 1 — Initial Approach Exploration
+### Phase 1: Problem Exploration & Architectural Trade-offs
 
-**Goal:** Help rural students reach college when government buses are limited, cancelled, or full.
+#### Prompt 1.1 — Exploration of Paradigms
+```text
+Goal: Help rural students reach college when government buses are limited, cancelled, or full.
+Context: Many students, few buses, routes disrupted. 3 hours, deployed & publicly accessible.
+Constraints: Free tools only. Web app. Modular architecture. No hardcoded values.
+Task: Give 3 different approaches (what it does, difficulty, risk). Recommend one and break down modules.
+```
 
-**Context:** Many students, few buses, routes sometimes disrupted. We have 3 hours and the app must be deployed and publicly accessible. We are using sample data. A surprise requirement may come later, so the design must be easy to change.
-
-**Constraints:** Free tools only. Web app. Modular — each feature in its own file, data in a separate config file, no hardcoded values. Keep it simple enough to finish in 3 hours.
-
-**Task:** Do not write code yet. First:
-- Give 3 different approaches (what it does, build difficulty, one risk).
-- Recommend one and say why.
-- For the recommended approach, give the module list and what each module does, and say which modules would change if requirements change.
-
-**Output:** Short and structured. No code.
-
----
-
-### Prompt 2 — Idea Synthesis and Final Product Direction
-
-We have two product ideas to merge into one:
-
-**Idea A — ROUTELESS (from the official brief):**
-A mobile-first arrival-recovery network. When a bus fails, students report the problem in one tap. A school coordinator confirms the incident. A deterministic Recovery Engine proposes assignments using verified school vehicles only. The coordinator approves the plan. Students who cannot be assigned see an honest "unserved" state with a school escalation option. The main showcase: Bus B2 breaks down, 12 students are affected, backup van V1 has 8 free seats — 8 assigned, 4 unserved. With zero backup — 0 assigned, 12 unserved. All data is clearly labeled as simulated.
-
-**Idea B — BusSaathi (our addition):**
-A student-first platform that adds: relay route alternatives (config-driven junction hops), a crowding forecast chip (Green / Amber / Red based on pending request count), a disruption simulation button, and a Kannada-language one-tap report so rural students can type in their local language (e.g., "Naale bus illa, college hogbeku") and have it parsed into a structured incident.
-
-**Task:** Merge the best of both ideas. Keep ROUTELESS's coordinator-approval architecture and safety guardrails (no unknown driver matching, verified vehicles only). Add BusSaathi's personality: Kannada input, relay route, crowding chip, and disruption simulation. Drop anything that cannot be built in 3 hours or requires real data (no ML demand prediction, no villager ride-pooling, no SMS delivery claims).
-
-Output the final merged product specification — short, structured, with feature priority (Must / Should / Stretch), data model, Recovery Engine rules, and a 90-second judge demo script.
+* **AI Output:** Proposed 1) Ride coordination board, 2) Bus status + carpool hybrid, 3) Pre-scheduled vehicle planner. Recommended Approach 2.
+* **Critique & Flaw Identified:** Approach 2 proposed generic crowdsourced carpooling. In rural Indian student settings with minors, carpooling with unknown private vehicles violates child safeguarding.
+* **Loop / Prompt 1.2 (Course Correction):**
+  > *"Refine Approach 2 to only allow verified school-contracted or institution-authorized vehicles. No unverified rides or unknown driver matching."*
 
 ---
 
-### Prompt 3 — Modular Architecture Design
+### Phase 2: Idea Synthesis — Merging ROUTELESS with BusSaathi
 
-**Context:** We are building ROUTELESS as a React + Vite + TypeScript + Tailwind web app. Do not write code yet.
+#### Prompt 2.1 — Synthesizing Formal Constraints with Rural Human Context
+```text
+Merge two complementary product concepts:
+- Concept A (ROUTELESS): Coordinator approval loop, deterministic constraints, honest unserved state when zero seats remain.
+- Concept B (BusSaathi): Student-first panic relief, Kannada local language reporting ("Naale bus illa, college hogbeku"), crowding forecast chip (Green/Amber/Red), and relay-route hopping.
+Task: Create a unified Product Specification. Filter out unrealistic claims (no fake ML predictions without historical data, no fake GPS).
+```
 
-**Task:** Design the modular architecture using a strict layered approach:
-- `data/` — pure data, no logic (types, fixtures, scenarios)
-- `domain/` — pure TypeScript functions, no React (recoveryEngine, eligibility, metrics)
-- `state/` — one canonical store using React Context + useReducer (reducer, store, persistence)
-- `components/` — dumb reusable UI only, no business logic
-- `pages/` — two screens: StudentHome and CoordinatorDashboard
-
-For each module, state what it does and which files change when a specific requirement changes. Show how modules communicate — through the store only, never directly.
-
-**Golden rule:** Domain logic never imports React. UI never contains business logic. Data files contain no functions.
+* **Output Analysis:** High-scoring balance. Preserved strict safety invariants from ROUTELESS while adding high-empathy rural usability from BusSaathi.
+* **Decision Gate:** The "Relay Route" feature was approved only as a config-driven lookup, preventing complex graph-routing algorithmic bloat during a 3-hour sprint.
 
 ---
 
-### Prompt 4 — Tech Stack Confirmation
+### Phase 3: The Architecture Debate (Frontend-Only vs. Docker + SQLite)
 
-**Task:** Confirm the final tech stack for ROUTELESS given these constraints: free tools only, web app (not React Native), deployable as a public URL in under 3 hours, mobile-first at 375px.
+#### Prompt 3.1 — The Realistic Stack Question
+```text
+Question: Can we achieve this with frontend-only (localStorage), or do we need a real backend to genuinely impress judges?
+```
 
-Provide the stack in layers: framework, styling, state management, persistence, testing, and deployment. For each tool, give one clear reason why it was chosen. Also list what was deliberately excluded and why.
-
----
-
-### Prompt 5 — Parallel Work Division for 4 Team Members
-
-**Context:** We have 4 team members and 3 hours. The architecture is already defined (layered modular structure). The tech stack is React + Vite + TypeScript + Tailwind + Vitest + Vercel.
-
-**Task:** Divide the work so all 4 people can work in parallel with minimal blocking. The first 10 minutes are spent together defining `types.ts`. After that, all 4 work independently. Define:
-- What each person owns (files and responsibilities)
-- How to unblock parallelism from minute 10
-- When to wire everything together (integration point at minute 90)
-- The rule for avoiding merge conflicts — no cross-module imports until integration
-
-Provide a visual timeline showing parallel tracks and the integration window.
+* **First AI Suggestion:** Suggested sticking to frontend-only to guarantee deployment speed in 3 hours.
+* **Human Rejection & Feedback Loop:**
+  > *"No, we need a real backend. We shouldn't build something too trivial. We need a live multi-device demo where coordinator actions immediately reflect on the student's phone."*
+* **Architecture Decision (Prompt 3.2):**
+  Adopt **Node.js (Hono) + SQLite (`better-sqlite3`) + Server-Sent Events (SSE) + Docker container**.
+  - **Why Hono over Express?** Modern TypeScript, lighter, zero-dependency startup.
+  - **Why SSE over WebSockets?** Native browser reconnection, zero external client library, lightweight one-way coordinator push.
 
 ---
 
-### Prompt 6 — Person 1: Backend Infrastructure & SQLite Persistence
+### Phase 4: Parallel Team Workflow Design (4 Members)
 
-**Goal:** Build the complete backend infrastructure using Node.js, Hono, SQLite (`better-sqlite3`), and Docker.
+#### Prompt 4.1 — Solving Team Blocking
+```text
+Context: 4 developers working simultaneously for 3 hours. How do we avoid merge conflicts and idle waiting?
+Task: Create a work division that unblocks parallelism from minute 10.
+```
 
-**Requirements:**
-- Define database schema for `villages`, `transport_options`, `incidents`, `help_requests`, `assignments`, and `scenarios`.
-- Populate deterministic seed data: Villages A/B/C, Buses B1/B2, backup Van V1 (8 available seats), 12 pseudonymous Village C student requests, and a reported B2 breakdown.
-- Configure `Dockerfile` and `docker-compose.yml` exposing port 3000.
-- Verify `GET /health` and `GET /api/villages` return status 200 with loaded fixture data.
+* **Iteration Result:** Identified that teammates block each other if types aren't standardized.
+* **Resolution:**
+  - **Minute 0–10:** All 4 agree on `types.ts` and directory structure upfront.
+  - **Person 1 (Backend Infra):** Docker, SQLite schema, demo fixtures seed.
+  - **Person 2 (Domain Engine):** Allocation algorithm, eligibility rules, Vitest unit tests.
+  - **Person 3 (Student UI):** Mobile-first commute check, Kannada reporting, SSE hook.
+  - **Person 4 (Coordinator UI & Deploy):** Multi-device control board, approval flow, Vercel/Railway deploy.
 
+---
+
+### Phase 5: Debugging & Infrastructure Verification (Person 1 in Practice)
+
+#### Iteration Loop 5.1 — Database Scaffolding & Native Modules
+* **Problem:** `better-sqlite3` is a native C++ Node addon. Windows terminal environments without complete build tools often fail compilation during local `npm install`.
+* **Prompt to Fix:**
+  > *"Containerize the backend with Docker so native sqlite dependencies build cleanly in an isolated Linux environment (node:20-alpine with python3/make/g++)."*
+* **Outcome:** `Dockerfile` and `docker-compose.yml` successfully built the image and tested the schema.
+
+#### Iteration Loop 5.2 — Git Hygiene & `.gitignore` Leak Prevention
+* **Incident:** Running `git add .` after `npm install` attempted to stage hundreds of files inside `backend/node_modules/` and local `routeless.db`.
+* **Immediate Intervention:** Aborted commit task, established root `.gitignore`, stripped `node_modules` from git index cache via `git rm -r --cached`, leaving working tree clean and lightweight.
+
+---
+
+### Phase 6: Verification & Proof of Deterministic State
+
+#### Prompt 6.1 — Database Invariant Verification
+```text
+Task: Run an automated verification script against SQLite to prove seed consistency without launching long-lived background servers.
+```
+
+* **Verified Output:**
+  ```text
+  [DB] Connected: E:\PromptBattle\routeless-last-mile\data\routeless.db
+  TABLES CREATED: villages, transport_options, transport_villages, transport_blocked_corridors, incidents, incident_villages, help_requests, assignments, scenarios
+  --- VERIFIED DATABASE STATE ---
+  Villages:        3
+  Transport Units: 3
+  Incidents:       1 (B2 Breakdown)
+  Help Requests:   12 (Pending Village C Students)
+  ```
+* **Status:** Ground truth established. Person 2 (Domain Engine) and Person 3 (Student UI) can now bind directly to persistent SQLite tables.
