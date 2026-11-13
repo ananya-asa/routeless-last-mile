@@ -163,25 +163,32 @@ see this bro properly this is the hurlde did we alreasy mentioned this inour ps 
 wait bro lets discuss what apprach did u think of for the hurdle
 ```
 
-#### Prompt 7.2 (Implementation Prompt)
+#### Prompt 7.2 (Hurdle Implementation Prompt)
 ```text
 Implement the Exam Day Crisis solution:
-1. Execute SQLite migration adding is_exam_day INTEGER DEFAULT 0 to help_requests.
-2. Update recoveryEngine.ts to sort requests by is_exam_day DESC so exam students get scarce seats first.
-3. In eligibility.ts, enforce zero grace period for exam day and validate against transport_blocked_corridors.
-4. When a route is flooded, return reason: 'route_blocked' and provide a concrete Relay Alternative: 'Travel via Village B (Northern Junction) to connect with high-ground emergency shuttle.'
-5. In scenarios.ts, add SCN-EXAM-CRISIS preset simulating dual breakdown (B1 + B2 cancelled), 40% surge (17 students, 10 exam takers), and flooded Southern corridor.
+1. Schema & Relay Route Table:
+   - Run ALTER TABLE help_requests ADD COLUMN is_exam_day INTEGER DEFAULT 0.
+   - Avoid hardcoding relay text. Create table relay_routes (source_village_id, junction_village_id, connecting_transport_id, walk_distance_km, corridor_id) referencing verified vehicles.
+   - Seed relay route: Village C (VLG-C) connects to Village B junction (VLG-B) via 1.8km dry path to connect with verified Bus B1 (BUS-B1).
+2. Priority Allocation:
+   - In recoveryEngine.ts, sort requests by is_exam_day DESC so exam students get scarce seats first.
+   - Enforce zero grace period for exam day in eligibility.ts.
+3. Flood Roadblock Handling:
+   - When a corridor is in transport_blocked_corridors, reject vehicle with reason: 'route_blocked'.
+   - Dynamically look up the config-driven relay route from the database rather than hardcoding route strings.
+4. Add SCN-EXAM-CRISIS preset simulating dual breakdown (B1 + B2 cancelled), 40% surge (17 students, 10 exam takers), and flooded Southern corridor.
 ```
 
 #### Code Adaptation & Verified Terminal Outputs
-1. **Schema Update:** Ran `ALTER TABLE help_requests ADD COLUMN is_exam_day INTEGER DEFAULT 0;`
-2. **Flood Roadblock & Relay Alternative Output:**
+1. **Schema & Config-Driven Relay Setup:**
+   Executed migration and created `relay_routes` table linked to verified vehicle `BUS-B1`.
+2. **Verified Flood Roadblock & Dynamic Relay Output:**
    ```text
-   --- FLOOD ROADBLOCK & RELAY TEST ---
+   --- FLOOD ROADBLOCK & DYNAMIC RELAY TEST ---
    Unserved Student: STU-001
    Reason: route_blocked
-   Explanation: [ROUTE BLOCKED BY FLOOD] Southern corridor flooded. Direct transit unsafe.
-   Relay Alternative: Relay Route: Travel via Village B (Northern Junction) to connect with high-ground emergency shuttle.
+   Explanation: [ROUTE BLOCKED BY FLOOD] Road corridor blocked by flood. Direct vehicle transit suspended.
+   Relay Alternative: Config-driven Relay Route: Walk 1.8km dry path to Village B -> Board verified Bus B1 — Village A & B Express.
    ```
 3. **Verified Crisis Allocation Output (17 students, +40% surge):**
    ```text

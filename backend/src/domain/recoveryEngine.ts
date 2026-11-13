@@ -1,4 +1,4 @@
-// recoveryEngine.ts — Deterministic allocation heuristic with Exam Day Crisis prioritization & Relay Routes
+// recoveryEngine.ts — Deterministic allocation heuristic with Exam Day Crisis prioritization & Config-Driven Relay Routes
 import { db } from '../db/client.js';
 import { isTransportEligible } from './eligibility.js';
 
@@ -31,6 +31,7 @@ export function runRecoveryEngine() {
       r.id as requestId, 
       r.student_id as studentId, 
       iv.village_id as villageId,
+      v.name as villageName,
       v.corridor_id as corridorId,
       COALESCE(r.is_exam_day, 0) as isExamDay
     FROM help_requests r
@@ -39,7 +40,7 @@ export function runRecoveryEngine() {
     LEFT JOIN villages v ON iv.village_id = v.id
     WHERE i.status = 'confirmed' AND r.status = 'pending'
     ORDER BY isExamDay DESC, r.student_id ASC
-  `).all() as { requestId: string; studentId: string; villageId: string; corridorId: string; isExamDay: number }[];
+  `).all() as { requestId: string; studentId: string; villageId: string; villageName: string; corridorId: string; isExamDay: number }[];
 
   // 2. Fetch all transport options & blocked corridors
   const transportRows = db.prepare('SELECT * FROM transport_options').all() as any[];
@@ -71,6 +72,23 @@ export function runRecoveryEngine() {
   for (const row of confirmedCounts) {
     allocatedSeatsMap[row.transport_option_id] = row.c;
   }
+
+  // Pre-load config-driven relay routes from DB
+  const relayRoutes = db.prepare(`
+    SELECT 
+      rr.source_village_id,
+      rr.junction_village_id,
+      jv.name as junctionName,
+      rr.walk_distance_km,
+      rr.connecting_transport_id,
+      t.label as connectingLabel,
+      t.verified as connectingVerified,
+      t.status as connectingStatus,
+      t.departure_min as connectingDepMin
+    FROM relay_routes rr
+    JOIN villages jv ON rr.junction_village_id = jv.id
+    JOIN transport_options t ON rr.connecting_transport_id = t.id
+  `).all() as any[];
 
   const proposals: RecoveryProposal[] = [];
   const unserved: UnservedStudent[] = [];
@@ -113,13 +131,19 @@ export function runRecoveryEngine() {
 
     if (!assigned) {
       if (failureReason === 'route_blocked') {
+        // Query config-driven relay connection from DB
+        const matchedRelay = relayRoutes.find(r => r.source_village_id === req.villageId);
+        const relayText = matchedRelay && matchedRelay.connectingVerified === 1
+          ? `Config-driven Relay Route: Walk ${matchedRelay.walk_distance_km}km dry path to ${matchedRelay.junctionName} -> Board verified ${matchedRelay.connectingLabel}.`
+          : `No safe dry bypass configured for village corridor.`;
+
         unserved.push({
           requestId: req.requestId,
           studentId: req.studentId,
           isExamDay: isExam,
           reason: 'route_blocked',
-          explanation: `[ROUTE BLOCKED BY FLOOD] Southern corridor flooded. Direct transit unsafe.`,
-          relayAlternative: `Relay Route: Travel via Village B (Northern Junction) to connect with high-ground emergency shuttle.`,
+          explanation: `[ROUTE BLOCKED BY FLOOD] Road corridor blocked by flood. Direct vehicle transit suspended.`,
+          relayAlternative: relayText,
         });
       } else {
         unserved.push({

@@ -38,6 +38,19 @@ CREATE TABLE IF NOT EXISTS transport_blocked_corridors (
   PRIMARY KEY (transport_id, corridor_id)
 );
 
+-- Config-driven junction relay routes for blocked corridors
+CREATE TABLE IF NOT EXISTS relay_routes (
+  id                      TEXT PRIMARY KEY,
+  source_village_id       TEXT NOT NULL,
+  junction_village_id     TEXT NOT NULL,
+  connecting_transport_id TEXT NOT NULL,
+  walk_distance_km        REAL NOT NULL,
+  corridor_id             TEXT NOT NULL,
+  FOREIGN KEY (source_village_id) REFERENCES villages(id),
+  FOREIGN KEY (junction_village_id) REFERENCES villages(id),
+  FOREIGN KEY (connecting_transport_id) REFERENCES transport_options(id)
+);
+
 CREATE TABLE IF NOT EXISTS incidents (
   id                  TEXT PRIMARY KEY,
   transport_option_id TEXT NOT NULL,
@@ -62,6 +75,7 @@ CREATE TABLE IF NOT EXISTS help_requests (
   incident_id TEXT NOT NULL,
   status      TEXT NOT NULL DEFAULT 'pending'
               CHECK(status IN ('pending','proposed','confirmed','unserved','escalated')),
+  is_exam_day INTEGER DEFAULT 0,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(student_id, incident_id),             -- prevents duplicate requests
   FOREIGN KEY (incident_id) REFERENCES incidents(id)
@@ -85,4 +99,3 @@ CREATE TABLE IF NOT EXISTS scenarios (
   name        TEXT NOT NULL,
   description TEXT
 );
-
