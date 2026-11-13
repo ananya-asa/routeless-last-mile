@@ -3,8 +3,16 @@ node_modules/
 dist/
 **/dist/
 .env
+.env.*
+!.env.example
 *.local
 data/*.db
 data/*.db-wal
 data/*.db-shm
-
+**/data/*.db
+**/data/*.db-wal
+**/data/*.db-shm
+coverage/
+*.tsbuildinfo
+.vercel/
+.DS_Store
