@@ -24,5 +24,15 @@ db.pragma('foreign_keys = ON');
 const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
 db.exec(schema);
 
+// Lightweight demo migrations: CREATE TABLE IF NOT EXISTS does not add new
+// columns to an existing database, so bring older volumes up to date.
+const helpRequestColumns = db
+  .prepare('PRAGMA table_info(help_requests)')
+  .all() as Array<{ name: string }>;
+if (!helpRequestColumns.some((column) => column.name === 'is_exam_day')) {
+  db.exec('ALTER TABLE help_requests ADD COLUMN is_exam_day INTEGER DEFAULT 0');
+  console.log('[DB] Migrated help_requests.is_exam_day');
+}
+
 console.log(`[DB] Connected: ${DB_PATH}`);
 
