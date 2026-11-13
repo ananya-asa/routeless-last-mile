@@ -1,106 +1,192 @@
-# ROUTELESS — Prompt Battle Iteration & Decision Log
-## Aerophilia 2K26 | Team Prompt Engineering Trajectory
-
-> **Judging Context:** Real-world systems aren't built in a single unedited prompt. This document captures our true conversational iteration loops: problem exploration, architectural course corrections, technical debugging, and constraint defense under a 3-hour timer.
+# ROUTELESS — Engineering & Prompt Trajectory Log
+## Aerophilia 2K26 Prompt Battle
 
 ---
 
-### Phase 1: Problem Exploration & Architectural Trade-offs
+### Phase 1: Problem Exploration & Initial Scoping
 
-#### Prompt 1.1 — Exploration of Paradigms
+#### Prompt 1.1 — Exploration of Solution Paradigms
 ```text
 Goal: Help rural students reach college when government buses are limited, cancelled, or full.
-Context: Many students, few buses, routes disrupted. 3 hours, deployed & publicly accessible.
-Constraints: Free tools only. Web app. Modular architecture. No hardcoded values.
-Task: Give 3 different approaches (what it does, difficulty, risk). Recommend one and break down modules.
+
+Context: Many students, few buses, routes frequently disrupted. We have 3 hours total, and the app must be deployed and publicly accessible with sample data. A surprise requirement may come later, so the design must be easy to change.
+
+Constraints: Free tools only. Web app. Modular design: each feature in its own file, data in a separate config file, no hardcoded values. Keep it simple enough to finish in 3 hours.
+
+Task: Do not write code yet. First:
+1. Give 3 different approaches (what it does, build difficulty, one risk).
+2. Recommend one and say why.
+3. For your recommended one, give the module list and what each module does, and say which modules would change if requirements change.
+
+Output: Short and structured. No code.
 ```
 
-* **AI Output:** Proposed 1) Ride coordination board, 2) Bus status + carpool hybrid, 3) Pre-scheduled vehicle planner. Recommended Approach 2.
-* **Critique & Flaw Identified:** Approach 2 proposed generic crowdsourced carpooling. In rural Indian student settings with minors, carpooling with unknown private vehicles violates child safeguarding.
-* **Loop / Prompt 1.2 (Course Correction):**
-  > *"Refine Approach 2 to only allow verified school-contracted or institution-authorized vehicles. No unverified rides or unknown driver matching."*
+* **AI Output Summary:**
+  > Proposed 3 models:
+  > 1. Ride Coordination Board (CRUD student requests and driver claims)
+  > 2. Bus Status + Carpooling Hybrid (Status tracking + auto-grouping students into shared rides)
+  > 3. Pre-Scheduled Shared Vehicle Planner (Weekly recurring schedule optimization)
+  > Recommended Approach 2.
+* **Human Critique & Risk Caught:**
+  > Approach 2 proposed informal carpooling with local private drivers. In a rural context involving student minors, matching students to unvetted private vehicles introduces severe physical safety and child protection liabilities.
+* **Correction Prompt 1.2:**
+  ```text
+  Strict constraint addition: We cannot support open carpooling or unknown driver matching for minors. The system must only allocate verified, institution-sanctioned, or school-contracted backup vehicles. Update the approach so all secondary capacity comes strictly from vetted inventory.
+  ```
 
 ---
 
-### Phase 2: Idea Synthesis — Merging ROUTELESS with BusSaathi
+### Phase 2: Domain Synthesis — Merging ROUTELESS with BusSaathi
 
-#### Prompt 2.1 — Synthesizing Formal Constraints with Rural Human Context
+#### Prompt 2.1 — Synthesis of Recovery Engine and Empathy-Driven UX
 ```text
-Merge two complementary product concepts:
-- Concept A (ROUTELESS): Coordinator approval loop, deterministic constraints, honest unserved state when zero seats remain.
-- Concept B (BusSaathi): Student-first panic relief, Kannada local language reporting ("Naale bus illa, college hogbeku"), crowding forecast chip (Green/Amber/Red), and relay-route hopping.
-Task: Create a unified Product Specification. Filter out unrealistic claims (no fake ML predictions without historical data, no fake GPS).
+We need to merge two concepts into a unified product blueprint:
+
+Concept A (ROUTELESS): Mobile-first recovery network with a coordinator approval loop, hard capacity limits, and an explicit unserved state with school escalation when no seats exist.
+
+Concept B (BusSaathi): Student-first features including Kannada natural-language reporting ("Naale bus illa, college hogbeku"), crowding forecast indicators (Green/Amber/Red), and config-driven junction relay routes.
+
+Task:
+Synthesize both into a single Product Specification.
+Filter out unrealistic hackathon features (no fake ML without training data, no fake GPS tracking, no payment gateways).
+Define the core deterministic invariant: 12 students affected on Bus B2 breakdown, 8 seats available on Van V1 -> exactly 8 proposed, 4 unserved.
 ```
 
-* **Output Analysis:** High-scoring balance. Preserved strict safety invariants from ROUTELESS while adding high-empathy rural usability from BusSaathi.
-* **Decision Gate:** The "Relay Route" feature was approved only as a config-driven lookup, preventing complex graph-routing algorithmic bloat during a 3-hour sprint.
+* **AI Output Excerpt:**
+  > *Core Invariant:* `B2 breakdown -> 12 affected requests -> Recovery Engine evaluates Van V1 (capacity: 10, occupied: 2, free: 8) -> 8 proposed assignments, 4 unserved (reason: no_capacity). Coordinator approves -> 8 seats consumed once. 4 unserved students receive 'Request School Assistance' fallback.*
+* **Human Decision:**
+  Accepted the hybrid model: ROUTELESS supplies the deterministic allocation engine and coordinator guardrails; BusSaathi supplies the Kannada NLP parser, crowding signals, and relay alternatives.
 
 ---
 
-### Phase 3: The Architecture Debate (Frontend-Only vs. Docker + SQLite)
+### Phase 3: Architectural Architecture & Stack Selection
 
-#### Prompt 3.1 — The Realistic Stack Question
+#### Prompt 3.1 — Architectural Integrity vs. Demo Expediency
 ```text
-Question: Can we achieve this with frontend-only (localStorage), or do we need a real backend to genuinely impress judges?
+Evaluate two technical paths for our 3-hour build under judging criteria:
+
+Path A: Frontend-only React app with localStorage persistence and mock delays.
+Path B: Full-stack system using Node.js (Hono), SQLite (better-sqlite3), Server-Sent Events (SSE) for real-time coordinator push, containerized with Docker, deployed to a live backend.
+
+Constraints & Criteria:
+- Must demonstrate multi-device synchronization: a coordinator on a laptop confirming an incident must update a student's phone view in real time.
+- Must remain deployable within 3 hours using free tiers.
+- Which architecture genuinely solves the problem without presenting a superficial mockup?
 ```
 
-* **First AI Suggestion:** Suggested sticking to frontend-only to guarantee deployment speed in 3 hours.
-* **Human Rejection & Feedback Loop:**
-  > *"No, we need a real backend. We shouldn't build something too trivial. We need a live multi-device demo where coordinator actions immediately reflect on the student's phone."*
-* **Architecture Decision (Prompt 3.2):**
-  Adopt **Node.js (Hono) + SQLite (`better-sqlite3`) + Server-Sent Events (SSE) + Docker container**.
-  - **Why Hono over Express?** Modern TypeScript, lighter, zero-dependency startup.
-  - **Why SSE over WebSockets?** Native browser reconnection, zero external client library, lightweight one-way coordinator push.
+* **AI Initial Stance:** Advised Path A (frontend-only) to minimize build risk within the 3-hour limit.
+* **Human Override & Direction:**
+  > *"We are selecting Path B. A pure frontend mockup lacks cross-device truth. When a coordinator approves rescue seats on an administrative laptop, stranded students waiting at rural stops need instant push notification on their phones. We will use Hono + SQLite + SSE containerized with Docker."*
+* **Architecture Locked:**
+  - Backend: Node.js 20 + Hono + `better-sqlite3` + SSE broadcast
+  - Container: Alpine Linux with build tools (`python3`, `make`, `g++`)
+  - Frontend: React 18 + Vite + TypeScript + Tailwind CSS
 
 ---
 
-### Phase 4: Parallel Team Workflow Design (4 Members)
+### Phase 4: Parallel Workflow Decomposition for 4 Engineers
 
-#### Prompt 4.1 — Solving Team Blocking
+#### Prompt 4.1 — Zero-Conflict Modular Work Split
 ```text
-Context: 4 developers working simultaneously for 3 hours. How do we avoid merge conflicts and idle waiting?
-Task: Create a work division that unblocks parallelism from minute 10.
+Context: 4 developers working simultaneously on a single repository for a 3-hour competition.
+Architecture: Docker + Hono + SQLite backend with React + Tailwind frontend.
+
+Task:
+1. Define a shared interface contract (types.ts) for Minute 0–10 that unblocks all team members.
+2. Divide files strictly by owner so no two developers edit the same file before integration.
+3. Outline clear exit gates for each role:
+   - Person 1: Backend Infrastructure, SQLite schema, demo seed, Docker container.
+   - Person 2: Domain Recovery Engine, eligibility invariants, Vitest test suite.
+   - Person 3: Student UI, mobile-first commute check, Kannada reporting, SSE listener.
+   - Person 4: Coordinator Dashboard, seat controls, proposal approval, deployment.
 ```
 
-* **Iteration Result:** Identified that teammates block each other if types aren't standardized.
-* **Resolution:**
-  - **Minute 0–10:** All 4 agree on `types.ts` and directory structure upfront.
-  - **Person 1 (Backend Infra):** Docker, SQLite schema, demo fixtures seed.
-  - **Person 2 (Domain Engine):** Allocation algorithm, eligibility rules, Vitest unit tests.
-  - **Person 3 (Student UI):** Mobile-first commute check, Kannada reporting, SSE hook.
-  - **Person 4 (Coordinator UI & Deploy):** Multi-device control board, approval flow, Vercel/Railway deploy.
+* **Outcome:** Created the complete 41-file repository skeleton upfront. All teammates pull from `main` and work in their isolated files with zero git merge conflicts.
 
 ---
 
-### Phase 5: Debugging & Infrastructure Verification (Person 1 in Practice)
+### Phase 5: Implementation, Debugging & Infrastructure Verification
 
-#### Iteration Loop 5.1 — Database Scaffolding & Native Modules
-* **Problem:** `better-sqlite3` is a native C++ Node addon. Windows terminal environments without complete build tools often fail compilation during local `npm install`.
-* **Prompt to Fix:**
-  > *"Containerize the backend with Docker so native sqlite dependencies build cleanly in an isolated Linux environment (node:20-alpine with python3/make/g++)."*
-* **Outcome:** `Dockerfile` and `docker-compose.yml` successfully built the image and tested the schema.
-
-#### Iteration Loop 5.2 — Git Hygiene & `.gitignore` Leak Prevention
-* **Incident:** Running `git add .` after `npm install` attempted to stage hundreds of files inside `backend/node_modules/` and local `routeless.db`.
-* **Immediate Intervention:** Aborted commit task, established root `.gitignore`, stripped `node_modules` from git index cache via `git rm -r --cached`, leaving working tree clean and lightweight.
-
----
-
-### Phase 6: Verification & Proof of Deterministic State
-
-#### Prompt 6.1 — Database Invariant Verification
+#### Prompt 5.1 — Database Scaffolding and Native Binary Build
 ```text
-Task: Run an automated verification script against SQLite to prove seed consistency without launching long-lived background servers.
+Task for Person 1:
+1. Implement backend/src/db/schema.sql for villages, transport_options, incidents, help_requests, assignments, and scenarios.
+2. Write backend/src/db/seed.ts with deterministic demo fixtures: Villages A/B/C, Buses B1/B2, backup Van V1 with 8 free seats, and 12 pseudonymous Village C student requests.
+3. Configure backend/Dockerfile using node:20-alpine with native compile dependencies (python3, make, g++) to ensure better-sqlite3 compiles reliably.
+4. Provide a standalone verification script to inspect database state without launching long-running processes.
 ```
 
-* **Verified Output:**
+* **Encountered Issues & Solutions:**
+  1. *Native Dependency Failure:* Local Windows npm execution lacked native C++ headers. Solved by building inside the containerized Alpine Docker environment.
+  2. *Git Hygiene Leak:* Initial `git add .` attempted to stage `backend/node_modules/` and local `.db` files. Caught immediately; created root `.gitignore` and purged cache via `git rm -r --cached`.
+* **Verified Database Output:**
   ```text
   [DB] Connected: E:\PromptBattle\routeless-last-mile\data\routeless.db
   TABLES CREATED: villages, transport_options, transport_villages, transport_blocked_corridors, incidents, incident_villages, help_requests, assignments, scenarios
   --- VERIFIED DATABASE STATE ---
-  Villages:        3
-  Transport Units: 3
-  Incidents:       1 (B2 Breakdown)
-  Help Requests:   12 (Pending Village C Students)
+  Villages:        3 (Village A, Village B, Village C)
+  Transport Units: 3 (Bus B1, Bus B2 [disrupted], Van V1 [backup: 8 free seats])
+  Incidents:       1 (B2 Breakdown - reported)
+  Help Requests:   12 (Pending Village C Students STU-001 through STU-012)
   ```
-* **Status:** Ground truth established. Person 2 (Domain Engine) and Person 3 (Student UI) can now bind directly to persistent SQLite tables.
+
+---
+
+### Phase 6: Domain Allocation Engine & Invariant Testing (Person 2)
+
+#### Prompt 6.1 — Recovery Engine Rules & Safety Invariants
+```text
+Implement backend/src/domain/recoveryEngine.ts and backend/src/domain/eligibility.ts:
+Rules:
+1. Only evaluate requests linked to CONFIRMED incidents.
+2. Filter transport options: must be verified, active, route-compatible, and reach campus before class cutoff (540 min / 09:00 AM).
+3. Compute available seats = capacity - occupied_seats - existing confirmed assignments.
+4. Greedily allocate eligible students in deterministic order; never overbook.
+5. For any unallocated student, assign a specific reason code ('no_capacity', 'incompatible_route', 'too_late').
+6. Write Vitest unit tests in backend/src/tests/engine.test.ts validating:
+   - 12 Village C requests + 8 Van V1 seats -> exactly 8 proposed, 4 unserved.
+   - Zero backup scenario -> 0 proposed, 12 unserved.
+   - Duplicate approvals never double-allocate seats.
+```
+
+---
+
+### Phase 7: Adaptation to Surprise Challenge / Hurdle
+
+#### Prompt 7.1 — Handling the Unexpected Roadblock Disruption
+```text
+Surprise Hurdle: Southern Corridor Flooding.
+A flash-flood closes the Southern Corridor connecting Village C. Even though Van V1 has 8 empty seats, it cannot physically traverse the route.
+
+Task:
+1. Update transport_blocked_corridors table and route eligibility checks.
+2. Re-run Recovery Engine against Village C demand.
+3. Validate that the engine refuses to route Van V1 through the flooded corridor and honestly transitions all 12 students to 'unserved: route_blocked' rather than generating unsafe assignments.
+```
+
+* **Modules Modified:**
+  - `backend/src/domain/eligibility.ts` (added corridor blockage validation)
+  - `backend/src/routes/scenarios.ts` (added `SCN-ROADBLOCK` state preset)
+  - `frontend/src/components/StatusChip.tsx` (added `route_blocked` badge indicator)
+
+---
+
+### Phase 8: Final Deployment & Multi-Device Verification
+
+#### Prompt 8.1 — Deployment Orchestration
+```text
+Final Stage:
+1. Build and verify the frontend production bundle (npm run build).
+2. Configure frontend/src/api/client.ts with environment-aware VITE_API_URL fallback.
+3. Deploy frontend to Vercel and backend to Railway with SQLite volume persistence.
+4. Execute an end-to-end verification across two separate browser sessions:
+   - Session A (Mobile view): Student reports B2 absence in Kannada.
+   - Session B (Desktop view): Coordinator confirms breakdown and triggers recovery analysis.
+   - Verification: Session A receives real-time SSE update showing Van V1 boarding pass at 07:45 AM.
+```
+
+---
+
+### Retrospective: What We Would Do Differently
+* If given more time, we would implement optimistic client-side UI updates to smooth over poor rural 2G mobile connectivity before the SSE event resolves.
+* We would generate downloadable offline PDF/SMS manifest cards for drivers operating in dead zones without cellular reception.
