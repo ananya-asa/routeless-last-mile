@@ -10,3 +10,4 @@ export const StudentHome: React.FC = () => {
     </div>
   );
 };
+

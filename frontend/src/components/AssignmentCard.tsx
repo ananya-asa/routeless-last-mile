@@ -13,3 +13,4 @@ export const AssignmentCard: React.FC<Props> = ({ proposal }) => {
     </div>
   );
 };
+

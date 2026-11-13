@@ -10,3 +10,4 @@ export const CoordinatorDashboard: React.FC = () => {
     </div>
   );
 };
+

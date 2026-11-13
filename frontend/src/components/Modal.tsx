@@ -22,3 +22,4 @@ export const Modal: React.FC<Props> = ({ isOpen, onClose, title, children }) => 
     </div>
   );
 };
+

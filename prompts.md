@@ -75,4 +75,13 @@ Provide a visual timeline showing parallel tracks and the integration window.
 
 ---
 
-### Prompt 6 —
+### Prompt 6 — Person 1: Backend Infrastructure & SQLite Persistence
+
+**Goal:** Build the complete backend infrastructure using Node.js, Hono, SQLite (`better-sqlite3`), and Docker.
+
+**Requirements:**
+- Define database schema for `villages`, `transport_options`, `incidents`, `help_requests`, `assignments`, and `scenarios`.
+- Populate deterministic seed data: Villages A/B/C, Buses B1/B2, backup Van V1 (8 available seats), 12 pseudonymous Village C student requests, and a reported B2 breakdown.
+- Configure `Dockerfile` and `docker-compose.yml` exposing port 3000.
+- Verify `GET /health` and `GET /api/villages` return status 200 with loaded fixture data.
+

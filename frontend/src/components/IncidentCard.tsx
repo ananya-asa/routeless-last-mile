@@ -25,3 +25,4 @@ export const IncidentCard: React.FC<Props> = ({ incident, onConfirm, onDismiss }
     </div>
   );
 };
+

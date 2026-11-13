@@ -19,3 +19,4 @@ export const VehicleCard: React.FC<Props> = ({ transport }) => {
     </div>
   );
 };
+

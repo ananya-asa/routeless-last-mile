@@ -13,3 +13,4 @@ export const EmptyState: React.FC<Props> = ({ title, description }) => {
     </div>
   );
 };
+
