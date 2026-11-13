@@ -387,7 +387,7 @@ function StudentHomeBody() {
   );
   const stage: StudentStage =
     mode === 'live'
-      ? stageFromLive(liveRequest, liveRequestIncident ?? selectedIncident)
+      ? stageFromLive(liveRequest ?? null, liveRequestIncident ?? selectedIncident)
       : previewStage;
 
   const pendingReports =
@@ -527,8 +527,10 @@ function StudentHomeBody() {
         }
 
         try {
-          await createHelpRequest(STUDENT_ID, incidentId);
-        } catch (error) {
+          if (incidentId) {
+            await createHelpRequest(STUDENT_ID, incidentId);
+          }
+        } catch (error: any) {
           // A request for this student + incident already exists: that is fine.
           if (!(error instanceof ApiError && error.status === 409)) throw error;
         }

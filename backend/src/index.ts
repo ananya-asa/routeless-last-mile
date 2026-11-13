@@ -1,17 +1,15 @@
 // ============================================================
 // index.ts — Hono app entry point.
 // Mounts all route handlers, starts the server.
-// Person 2 fills in the route files; this file just wires them.
 // ============================================================
 
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { db } from './db/client.js';
 import { seedIfEmpty } from './db/seed.js';
 
-// ── Import route handlers (Person 2 fills these in) ─────────
+// ── Import route handlers ──────────────────────────────────
 import { incidentRoutes }  from './routes/incidents.js';
 import { requestRoutes }   from './routes/requests.js';
 import { recoveryRoutes }  from './routes/recovery.js';
@@ -20,6 +18,7 @@ import { villageRoutes }   from './routes/villages.js';
 import { transportRoutes } from './routes/transport.js';
 import { metricRoutes }    from './routes/metrics.js';
 import { scenarioRoutes }  from './routes/scenarios.js';
+import { triageRoutes }    from './routes/triage.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -48,6 +47,7 @@ app.route('/api/recovery',   recoveryRoutes);
 app.route('/api/events',     eventRoutes);
 app.route('/api/metrics',    metricRoutes);
 app.route('/api/scenarios',  scenarioRoutes);
+app.route('/api/triage',     triageRoutes);
 
 // ── 404 fallback ─────────────────────────────────────────────
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
@@ -55,8 +55,7 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 // ── Start server ─────────────────────────────────────────────
 serve({ fetch: app.fetch, port: PORT }, () => {
   console.log(`[Server] ROUTELESS backend running on http://localhost:${PORT}`);
-  console.log(`[Server] Demo scenario loaded — 12 Village C students pending`);
+  console.log(`[Server] Sarvam AI Kannada triage active at /api/triage/sarvam`);
 });
 
 export default app;
-
