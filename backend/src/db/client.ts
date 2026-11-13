@@ -5,13 +5,17 @@
 // ============================================================
 
 import Database from 'better-sqlite3';
-import { readFileSync } from 'fs';
+import { mkdirSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const DB_PATH = process.env.DB_PATH ?? join(__dirname, '../../../data/routeless.db');
+
+// Fresh clones do not ship an empty data/ directory. Create it before
+// better-sqlite3 tries to open the database file.
+mkdirSync(dirname(DB_PATH), { recursive: true });
 
 // Open (or create) the SQLite database
 export const db = new Database(DB_PATH);

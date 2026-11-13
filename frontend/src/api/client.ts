@@ -1,9 +1,9 @@
 // client.ts — Fetch helpers to backend API with Sarvam AI Indic triage support.
 // All mapping from backend camelCase → frontend snake_case types is done here.
 
-import type { Village, TransportOption, Incident, HelpRequest, RecoveryResult, DashboardMetrics } from '../data/types';
+import type { Village, TransportOption, Incident, HelpRequest, RecoveryResult, DashboardMetrics, VehicleStatus } from '../data/types';
 
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+export const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3000').trim().replace(/\/+$/, '');
 
 export class ApiError extends Error {
   constructor(message: string, public status?: number) {
@@ -66,8 +66,25 @@ export async function fetchTransport(): Promise<TransportOption[]> {
       driver_name: t.driverName ?? t.driver_name,
       contact: t.contact,
       villageIds: t.villageIds ?? [],
+      blockedCorridorIds: t.blockedCorridorIds ?? [],
     };
   });
+}
+
+export async function updateTransport(
+  id: string,
+  patch: { occupiedSeats?: number; status?: VehicleStatus },
+) {
+  const res = await fetch(`${API_BASE}/api/transport/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new ApiError(json?.error ?? `Could not update ${id}`, res.status);
+  }
+  return json;
 }
 
 // ── Incidents ─────────────────────────────────────────────────
@@ -126,6 +143,8 @@ export async function fetchHelpRequests(): Promise<HelpRequest[]> {
     incident_id: r.incidentId ?? r.incident_id,
     status: r.status,
     created_at: r.created_at ?? new Date().toISOString(),
+    isExamDay: Boolean(r.isExamDay ?? r.is_exam_day),
+    assignedOptionId: r.assignedOptionId ?? r.assigned_option_id,
   }));
 }
 
@@ -180,6 +199,13 @@ export async function fetchDashboardMetrics(): Promise<DashboardMetrics> {
     affectedRequests: json.affected ?? json.affectedRequests ?? 0,
     confirmedPlacements: json.confirmedPlacements ?? 0,
     unserved: json.unserved ?? 0,
+    affected: json.affected ?? json.affectedRequests ?? 0,
+    examStudents: json.examStudents ?? 0,
+    eligibleProposals: json.eligibleProposals ?? 0,
+    freeSeats: json.freeSeats ?? 0,
+    verifiedVehicles: json.verifiedVehicles ?? 0,
+    unverifiedVehicles: json.unverifiedVehicles ?? 0,
+    seatUsage: json.seatUsage ?? {},
   };
 }
 

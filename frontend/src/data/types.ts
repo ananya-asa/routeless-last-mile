@@ -31,6 +31,10 @@ export interface TransportOption {
   driver_name?: string;
   contact?: string;
   villageIds: string[];
+  blockedCorridorIds?: string[];
+  /** Computed client-side from confirmed requests for the coordinator board. */
+  confirmedAssignments?: number;
+  freeSeats?: number;
 }
 
 export interface Incident {
@@ -42,6 +46,9 @@ export interface Incident {
   details?: string;
   created_at: string;
   affectedVillageIds: string[];
+  /** Presentation-only enrichment added by the coordinator client. */
+  transportLabel?: string;
+  requestCount?: number;
 }
 
 export interface HelpRequest {
@@ -50,6 +57,9 @@ export interface HelpRequest {
   incident_id: string;
   status: RequestStatus;
   created_at: string;
+  isExamDay?: boolean;
+  assignedOptionId?: string;
+  assignmentLabel?: string;
 }
 
 export interface Assignment {
@@ -67,6 +77,10 @@ export interface RecoveryProposal {
   transportOptionId: string;
   transportLabel: string;
   explanation: string;
+  id?: string;
+  status?: 'proposed' | 'confirmed';
+  isExamDay?: boolean;
+  arrivalMin?: number;
 }
 
 export interface UnservedStudent {
@@ -82,6 +96,11 @@ export interface RecoveryResult {
   unservedCount: number;
   proposals: RecoveryProposal[];
   unserved: UnservedStudent[];
+  id?: string;
+  status?: 'draft' | 'approved';
+  engineNote?: string;
+  examStudentCount?: number;
+  createdAtMin?: number;
 }
 
 export interface DashboardMetrics {
@@ -90,5 +109,17 @@ export interface DashboardMetrics {
   affectedRequests: number;
   confirmedPlacements: number;
   unserved: number;
+  affected?: number;
+  examStudents?: number;
+  eligibleProposals?: number;
+  freeSeats?: number;
+  verifiedVehicles?: number;
+  unverifiedVehicles?: number;
+  seatUsage?: Record<string, number>;
 }
 
+export interface Scenario {
+  id: string;
+  name: string;
+  description: string;
+}
